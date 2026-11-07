@@ -782,3 +782,156 @@ body[data-design="night"] .minimal-task-card, body[data-design="night"] .minimal
 .desktop-pet.is-laughing .pet-emoji, .desktop-pet.is-laughing #petImage { animation: dumpling-laugh .45s ease-in-out 4; }
 @keyframes dragon-dance { 0%,100% { transform: translateY(0) rotate(-3deg) scale(1); } 25% { transform: translateY(-14px) rotate(8deg) scale(1.04); } 50% { transform: translateY(0) rotate(-7deg) scale(.98); } 75% { transform: translateY(-9px) rotate(5deg) scale(1.03); } }
 @keyframes dumpling-laugh { 0%,100% { transform: scale(1); } 50% { transform: translateY(-7px) scale(1.08,.94); } }
+@font-face { font-family: "Geist Sans"; src: url("./assets/fonts/geist-sans-latin-400-normal.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Geist Sans"; src: url("./assets/fonts/geist-sans-latin-500-normal.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Geist Sans"; src: url("./assets/fonts/geist-sans-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Geist Sans"; src: url("./assets/fonts/geist-sans-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+
+/* 1.6 Apex-inspired dark SaaS interface */
+.site-background-video { position: fixed; inset: 0; z-index: -6; width: 100%; height: 100%; object-fit: cover; opacity: .44; }
+.site-video-shade { position: fixed; inset: 0; z-index: -5; background: radial-gradient(circle at 50% 22%, rgba(135,251,137,.08), transparent 28rem), linear-gradient(180deg, rgba(10,5,20,.25), rgba(8,3,16,.82) 60%, rgba(8,3,16,.96)); pointer-events: none; }
+body[data-design="apex"] {
+  --apex-bg: 260 87% 3%;
+  --apex-fg: 40 6% 95%;
+  --apex-primary: 121 95% 76%;
+  --apex-primary-fg: 0 0% 5%;
+  --apex-sub: 40 6% 82%;
+  --apex-muted: 240 4% 16%;
+  --apex-border: 240 4% 20%;
+  --paper: hsl(var(--apex-bg));
+  --surface: rgba(15, 12, 22, .66);
+  --surface-soft: rgba(19, 16, 27, .56);
+  --surface-solid: #0e0b15;
+  --ink: hsl(var(--apex-fg));
+  --muted: hsl(var(--apex-sub) / .63);
+  --line: hsl(var(--apex-border));
+  --forest: hsl(var(--apex-primary));
+  --forest-deep: hsl(var(--apex-primary) / .84);
+  --mint: hsl(var(--apex-primary) / .12);
+  --orange: hsl(var(--apex-primary));
+  --orange-soft: hsl(var(--apex-primary) / .12);
+  --red: #ff7f8b;
+  --red-soft: rgba(255, 88, 108, .13);
+  --yellow: #ffe083;
+  --yellow-soft: rgba(255, 211, 90, .11);
+  --green: #87fb89;
+  --green-soft: rgba(135, 251, 137, .1);
+  --gray-soft: rgba(255,255,255,.055);
+  --shadow: 0 24px 80px rgba(0,0,0,.38);
+  --shadow-soft: 0 16px 42px rgba(0,0,0,.25);
+  color: hsl(var(--apex-fg));
+  background: hsl(var(--apex-bg));
+  font-family: "Geist Sans", "Microsoft YaHei", sans-serif;
+}
+body[data-design="apex"]::before { opacity: .14; background-size: 64px 64px; }
+body[data-design="apex"] .topbar,
+body[data-design="apex"] .left-sidebar,
+body[data-design="apex"] .right-sidebar,
+body[data-design="apex"] .tasks-panel,
+body[data-design="apex"] .auth-card,
+body[data-design="apex"] .modal-card {
+  position: relative; color: var(--ink); background: rgba(255,255,255,.01); background-blend-mode: luminosity; border: none; box-shadow: inset 0 1px 1px rgba(255,255,255,.1), 0 24px 80px rgba(0,0,0,.3); backdrop-filter: blur(4px); overflow: hidden;
+}
+body[data-design="apex"] .topbar::before,
+body[data-design="apex"] .left-sidebar::before,
+body[data-design="apex"] .right-sidebar::before,
+body[data-design="apex"] .tasks-panel::before,
+body[data-design="apex"] .auth-card::before,
+body[data-design="apex"] .modal-card::before {
+  position: absolute; inset: 0; z-index: 0; padding: 1.4px; content: ""; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.45) 0%, rgba(255,255,255,.15) 20%, rgba(255,255,255,0) 40%, rgba(255,255,255,0) 60%, rgba(255,255,255,.15) 80%, rgba(255,255,255,.45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+}
+body[data-design="apex"] .topbar > *,
+body[data-design="apex"] .left-sidebar > *,
+body[data-design="apex"] .right-sidebar > *,
+body[data-design="apex"] .tasks-panel > *,
+body[data-design="apex"] .auth-card > *,
+body[data-design="apex"] .modal-card > * { position: relative; z-index: 1; }
+body[data-design="apex"] .brand strong { color: var(--ink); }
+body[data-design="apex"] .brand small, body[data-design="apex"] .breadcrumb { color: var(--muted); }
+body[data-design="apex"] .brand-mark { background: linear-gradient(135deg, hsl(var(--apex-primary)), #b8ff9e); color: hsl(var(--apex-primary-fg)); box-shadow: 0 0 30px rgba(135,251,137,.25); }
+body[data-design="apex"] .button-primary { color: hsl(var(--apex-primary-fg)); background: hsl(var(--apex-primary)); box-shadow: 0 0 24px rgba(135,251,137,.18); }
+body[data-design="apex"] .button-primary:hover { background: hsl(var(--apex-primary) / .9); }
+body[data-design="apex"] .button-ghost, body[data-design="apex"] .liquid-button { color: var(--ink); border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.045); box-shadow: inset 0 1px 1px rgba(255,255,255,.08); backdrop-filter: blur(8px); }
+body[data-design="apex"] .button-ghost:hover, body[data-design="apex"] .liquid-button:hover { background: rgba(255,255,255,.09); }
+body[data-design="apex"] .mode-switch, body[data-design="apex"] .period-tabs { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); }
+body[data-design="apex"] .mode-button, body[data-design="apex"] .period-tab { color: var(--muted); }
+body[data-design="apex"] .mode-button.is-active, body[data-design="apex"] .period-tab.is-active { color: var(--ink); background: rgba(255,255,255,.1); box-shadow: inset 0 1px rgba(255,255,255,.08); }
+body[data-design="apex"] .account-area { color: var(--ink); background: rgba(255,255,255,.055); border-color: rgba(255,255,255,.1); }
+body[data-design="apex"] .theme-hero { color: var(--ink); border: 1px solid rgba(255,255,255,.1); background: linear-gradient(135deg, rgba(23,18,34,.86), rgba(8,5,14,.55)) !important; box-shadow: inset 0 1px 1px rgba(255,255,255,.1), 0 26px 80px rgba(0,0,0,.36); }
+body[data-design="apex"] .theme-hero::after { background: radial-gradient(circle at 50% 0, rgba(135,251,137,.12), transparent 45%); }
+body[data-design="apex"] .theme-hero h1 { color: hsl(40 10% 96%); text-shadow: 0 0 38px rgba(255,255,255,.08); }
+body[data-design="apex"] .theme-hero p { color: hsl(40 6% 82% / .82); }
+body[data-design="apex"] .announcement-badge { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; width: fit-content; margin-bottom: 15px; padding: 4px; color: var(--ink); border-radius: 999px; background: rgba(255,255,255,.045); box-shadow: inset 0 1px 1px rgba(255,255,255,.1); font-size: 9px; font-weight: 600; }
+body[data-design="apex"] .announcement-pill { padding: 3px 8px; color: hsl(var(--apex-primary-fg)); border-radius: 999px; background: hsl(var(--apex-primary)); font-weight: 700; }
+body[data-design="apex"] .theme-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+body[data-design="apex"] .theme-stat { color: var(--ink); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.055); backdrop-filter: blur(8px); }
+body[data-design="apex"] .theme-stat span { color: var(--muted); }
+body[data-design="apex"] .theme-symbol { border: 1px solid rgba(135,251,137,.22); background: rgba(135,251,137,.08); box-shadow: 0 0 60px rgba(135,251,137,.12); }
+body[data-design="apex"] .theme-item { color: var(--ink); }
+body[data-design="apex"] .theme-item:hover { background: rgba(255,255,255,.055); }
+body[data-design="apex"] .theme-item.is-active { border-color: rgba(135,251,137,.28); background: rgba(135,251,137,.1); }
+body[data-design="apex"] .theme-item-icon { color: var(--ink); background: rgba(255,255,255,.07); }
+body[data-design="apex"] .theme-item-copy small, body[data-design="apex"] .theme-item-count, body[data-design="apex"] .sidebar-label { color: var(--muted); }
+body[data-design="apex"] .sidebar-action { color: var(--ink); border-color: rgba(255,255,255,.09); background: rgba(255,255,255,.04); }
+body[data-design="apex"] .sidebar-action-primary { color: hsl(var(--apex-primary-fg)); border-color: transparent; background: hsl(var(--apex-primary)); }
+body[data-design="apex"] .sort-control select, body[data-design="apex"] .filter-fields select, body[data-design="apex"] .filter-fields input, body[data-design="apex"] .search-box, body[data-design="apex"] .field input, body[data-design="apex"] .field select, body[data-design="apex"] .field textarea, body[data-design="apex"] .notice-input, body[data-design="apex"] .minimal-input-text { color: var(--ink); border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.055); }
+body[data-design="apex"] input::placeholder, body[data-design="apex"] textarea::placeholder { color: rgba(245,242,236,.36); }
+body[data-design="apex"] .task-card { color: var(--ink); border-color: rgba(255,255,255,.1); background: linear-gradient(110deg, rgba(255,255,255,.07), rgba(255,255,255,.025)); box-shadow: inset 0 1px 1px rgba(255,255,255,.06), 0 14px 35px rgba(0,0,0,.2); }
+body[data-design="apex"] .task-card.priority-red { background: linear-gradient(105deg, rgba(255,87,107,.13), rgba(255,255,255,.025) 45%); }
+body[data-design="apex"] .task-card.priority-yellow { background: linear-gradient(105deg, rgba(255,216,94,.11), rgba(255,255,255,.025) 45%); }
+body[data-design="apex"] .task-card.priority-green { background: linear-gradient(105deg, rgba(135,251,137,.1), rgba(255,255,255,.025) 45%); }
+body[data-design="apex"] .task-card h3, body[data-design="apex"] .list-heading h2, body[data-design="apex"] .heading-line, body[data-design="apex"] .right-sidebar h2 { color: var(--ink); }
+body[data-design="apex"] .event-time, body[data-design="apex"] .source-chip, body[data-design="apex"] .category-chip, body[data-design="apex"] .task-meta, body[data-design="apex"] .next-action, body[data-design="apex"] .list-heading p, body[data-design="apex"] .filter-label { color: var(--muted); }
+body[data-design="apex"] .category-chip, body[data-design="apex"] .source-chip { border-color: rgba(255,255,255,.09); background: rgba(255,255,255,.045); }
+body[data-design="apex"] .empty-state { color: var(--muted); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.025); }
+body[data-design="apex"] .filter-chip { color: var(--muted); border-color: rgba(255,255,255,.09); background: rgba(255,255,255,.04); }
+body[data-design="apex"] .filter-chip.is-active { color: hsl(var(--apex-primary-fg)); border-color: transparent; background: hsl(var(--apex-primary)); }
+body[data-design="apex"] .filter-note { color: var(--muted); background: rgba(255,255,255,.035); }
+body[data-design="apex"] .timeline-card, body[data-design="apex"] .overview-row, body[data-design="apex"] .overview-card, body[data-design="apex"] .detail-block { color: var(--ink); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.045); }
+body[data-design="apex"] .modal { color: var(--ink); }
+body[data-design="apex"] .modal-backdrop { background: rgba(0,0,0,.72); }
+body[data-design="apex"] .modal-card, body[data-design="apex"] .right-sidebar { overflow-y: auto; }
+body[data-design="apex"] .upload-zone, body[data-design="apex"] .upload-compact { color: var(--ink); border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.045); }
+body[data-design="apex"] .preview-panel, body[data-design="apex"] .detail-edit-panel, body[data-design="apex"] .overview-card, body[data-design="apex"] .keyword-rule-row input, body[data-design="apex"] .preview-item input { color: var(--ink); border-color: rgba(255,255,255,.1); background: rgba(255,255,255,.055); }
+body[data-design="apex"] .auth-screen { background: radial-gradient(circle at 50% 20%, rgba(135,251,137,.08), transparent 28rem), rgba(6,3,12,.58); }
+body[data-design="apex"] .auth-card h1 { color: hsl(40 10% 96%); }
+body[data-design="apex"] .auth-card > p, body[data-design="apex"] .auth-note { color: hsl(40 6% 82% / .75); }
+body[data-design="apex"] .personal-panel { margin-top: 7px; padding: 9px; border: 1px solid rgba(255,255,255,.09); border-radius: 13px; background: rgba(255,255,255,.04); }
+body[data-design="apex"] .personal-profile { display: flex; align-items: center; gap: 8px; }
+body[data-design="apex"] .personal-avatar { display: grid; width: 29px; height: 29px; place-items: center; flex: 0 0 auto; color: hsl(var(--apex-primary-fg)); border-radius: 9px; background: hsl(var(--apex-primary)); font-size: 10px; font-weight: 800; }
+body[data-design="apex"] .personal-avatar.large { width: 42px; height: 42px; border-radius: 13px; font-size: 14px; }
+body[data-design="apex"] .personal-profile strong, body[data-design="apex"] .personal-profile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body[data-design="apex"] .personal-profile strong { color: var(--ink); font-size: 9px; }
+body[data-design="apex"] .personal-profile small { color: var(--muted); font-size: 8px; }
+body[data-design="apex"] .personal-actions { display: flex; gap: 5px; margin-top: 8px; }
+body[data-design="apex"] .personal-actions button { flex: 1; padding: 4px; color: var(--muted); border: 1px solid rgba(255,255,255,.08); border-radius: 7px; background: rgba(255,255,255,.035); font-size: 7px; font-weight: 700; }
+body[data-design="apex"] .account-summary { display: flex; align-items: center; gap: 11px; padding: 13px; border-radius: 14px; background: rgba(255,255,255,.045); }
+body[data-design="apex"] .account-summary strong, body[data-design="apex"] .account-summary small { display: block; }
+body[data-design="apex"] .account-summary strong { font-size: 13px; }
+body[data-design="apex"] .account-summary small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+body[data-design="apex"] .account-data-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+body[data-design="apex"] .account-data-grid div { padding: 10px; border: 1px solid rgba(255,255,255,.08); border-radius: 11px; background: rgba(255,255,255,.035); }
+body[data-design="apex"] .account-data-grid strong, body[data-design="apex"] .account-data-grid span { display: block; }
+body[data-design="apex"] .account-data-grid strong { font-size: 16px; }
+body[data-design="apex"] .account-data-grid span { color: var(--muted); font-size: 8px; }
+body[data-design="apex"] .account-management-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+body[data-design="apex"] #designButton { display: none !important; }
+.liquid-glass { background: rgba(255,255,255,.01); background-blend-mode: luminosity; backdrop-filter: blur(4px); border: none; box-shadow: inset 0 1px 1px rgba(255,255,255,.1); overflow: hidden; }
+body.left-collapsed .personal-panel { display: none; }
+.desktop-pet > * { pointer-events: none; }
+.site-background-video, .site-video-shade { pointer-events: none; }
+@media (max-width: 680px) {
+  body[data-design="apex"] .theme-hero { min-height: 210px; padding: 20px 16px; }
+  body[data-design="apex"] .announcement-badge { margin-bottom: 10px; }
+  body[data-design="apex"] .theme-hero-actions { margin-top: 11px; }
+  body[data-design="apex"] .account-area { max-width: 88px; }
+  body[data-design="apex"] .personal-panel { margin-top: 5px; }
+}
+html, body { max-width: 100%; overflow-x: hidden; }
+body[data-design="apex"] { overflow-x: hidden; }
+@media (max-width: 680px) {
+  body[data-design="apex"] .ambient { display: none; }
+  body[data-design="apex"] .right-sidebar { max-width: calc(100vw - 16px); }
+}

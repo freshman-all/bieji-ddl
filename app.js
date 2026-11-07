@@ -79,7 +79,7 @@ const state = {
   minimalImageData: "",
   minimalHash: "",
   importTextHash: "",
-  designTheme: "warm",
+  designTheme: "apex",
   focusSky: "day",
   focusSession: null,
   reminderSettings: { enabled: true, minutes: 15 }
@@ -94,6 +94,7 @@ let cloudHydrating = false;
 let cloudSaveTimer = null;
 let lastAppliedCloudSignature = "";
 let cloudSyncErrorShown = false;
+let cloudDirty = false;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -288,10 +289,14 @@ function scheduleCloudSave() {
     try {
       await window.BiejiCloud.saveSnapshot(buildCloudPayload());
       cloudSyncErrorShown = false;
+      cloudDirty = false;
+      updatePersonalPanel();
     } catch (error) {
+      cloudDirty = true;
+      updatePersonalPanel();
       if (!cloudSyncErrorShown) {
         cloudSyncErrorShown = true;
-        showToast("云端同步失败，数据仍保存在本机");
+        showToast("当前离线，修改已保存在本机，联网后会自动同步");
       }
     }
   }, 650);
@@ -342,7 +347,7 @@ function applyCloudSnapshot(snapshot) {
   state.events = rawTasks.map(normalizeCloudTask);
   state.mode = profile.mode === "minimal" ? "minimal" : "detail";
   state.pet = { ...DEFAULT_PET, ...(profile.pet || {}) };
-  state.designTheme = profile.designTheme || "warm";
+  state.designTheme = "apex";
   state.reminderSettings = { enabled: true, minutes: 15, ...(profile.reminderSettings || {}) };
   state.keywordRules = Array.isArray(profile.keywordRules) ? profile.keywordRules : DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
   const aiSettings = profile.aiSettings || {};
@@ -360,12 +365,82 @@ function applyCloudSnapshot(snapshot) {
     localStorage.setItem(MODE_KEY, state.mode);
   } catch (error) { /* Cloud data remains available in memory. */ }
   cloudHydrating = false;
+  cloudDirty = false;
   applyMode(state.mode);
   applyDesignTheme(state.designTheme, false);
   updateAIStatus();
   renderAll();
+  updatePersonalPanel();
   if (firstRun) window.setTimeout(scheduleCloudSave, 300);
   showToast("云端数据已同步");
+}
+
+function updatePersonalPanel() {
+  if (!dom.personalName) return;
+  const cloudEnabled = Boolean(window.BiejiCloud?.enabled);
+  const username = cloudEnabled && window.BiejiCloud.isReady() ? window.BiejiCloud.getUsername() : "本地模式";
+  const initial = String(username || "本").slice(0, 1).toUpperCase();
+  const offline = cloudEnabled && window.BiejiCloud.isReady() && window.BiejiCloud.isOffline();
+  const status = !cloudEnabled ? "数据保存在本机" : offline ? (cloudDirty ? "离线修改待同步" : "离线可用") : cloudDirty ? "本地修改待同步" : "云端已同步";
+  dom.personalName.textContent = username;
+  dom.personalAvatar.textContent = initial;
+  dom.personalSyncStatus.textContent = status;
+  if (dom.accountDisplayName) {
+    dom.accountDisplayName.textContent = username;
+    dom.accountAvatar.textContent = initial;
+    dom.accountStatusText.textContent = cloudEnabled ? (offline ? "离线模式 · 本地副本可用" : "云账号已连接") : "尚未连接云端账号";
+    dom.localTaskCount.textContent = String(state.events.filter((event) => !event.deleted).length);
+    dom.cloudStateText.textContent = !cloudEnabled ? "本地" : offline ? "离线" : cloudDirty ? "待同步" : "已同步";
+    dom.accountModeLabel.textContent = cloudEnabled ? "账号" : "本地";
+  }
+}
+
+function openAccountManager() {
+  updatePersonalPanel();
+  openModal("accountModal");
+}
+
+function exportBackup() {
+  const payload = buildCloudPayload();
+  const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...payload }, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `bieji-ddl-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  showToast("本地备份已导出");
+}
+
+async function importBackupFile(file) {
+  if (!file) return;
+  const raw = await file.text();
+  const data = JSON.parse(raw);
+  if (!Array.isArray(data.themes) || !(Array.isArray(data.tasks) || Array.isArray(data.events))) throw new Error("备份文件格式不正确");
+  const profile = data.profile || {};
+  applyCloudSnapshot({ themes: data.themes, tasks: data.tasks || data.events, profile });
+  showToast("备份已导入");
+}
+
+async function syncNow() {
+  if (!window.BiejiCloud?.isReady()) { showToast("当前没有可同步的云账号"); return; }
+  try {
+    await window.BiejiCloud.saveSnapshot(buildCloudPayload());
+    cloudDirty = false;
+    updatePersonalPanel();
+    showToast("同步完成");
+  } catch (error) {
+    showToast("网络不可用，数据已保存在本机");
+  }
+}
+
+function clearLocalCache() {
+  if (!window.confirm("清理本机缓存？如果已连接云端，会从云端恢复。")) return;
+  localStorage.removeItem(THEMES_KEY);
+  localStorage.removeItem(EVENTS_KEY);
+  showToast("本地缓存已清理");
+  if (window.BiejiCloud?.isReady()) window.BiejiCloud.refreshNow().then((snapshot) => snapshot && applyCloudSnapshot(snapshot));
 }
 
 function resetCloudUserState() {
@@ -814,11 +889,9 @@ async function analyzeMinimalInput() {
 
 
 function applyDesignTheme(name, persist = true) {
-  const allowed = ["warm", "editorial", "brutal", "glass", "night"];
-  state.designTheme = allowed.includes(name) ? name : "warm";
-  document.body.dataset.design = state.designTheme;
-  localStorage.setItem(DESIGN_KEY, state.designTheme);
-  $$(".design-option").forEach((button) => button.classList.toggle("is-active", button.dataset.design === state.designTheme));
+  state.designTheme = "apex";
+  document.body.dataset.design = "apex";
+  localStorage.setItem(DESIGN_KEY, "apex");
   if (persist) scheduleCloudSave();
 }
 
@@ -1035,6 +1108,7 @@ function renderAll() {
   if (dom.desktopPet) renderPet();
   if (dom.minimalScreen) renderMinimalScreen();
   scheduleTaskNotifications();
+  updatePersonalPanel();
 }
 
 let toastTimer = null;
@@ -2263,6 +2337,16 @@ function bindMinimalActions() {
 }
 
 function bindV3Actions() {
+  dom.accountManageButton.addEventListener("click", openAccountManager);
+  dom.exportBackupButton.addEventListener("click", exportBackup);
+  dom.accountExportButton.addEventListener("click", exportBackup);
+  dom.importBackupButton.addEventListener("click", () => dom.backupFileInput.click());
+  dom.backupFileInput.addEventListener("change", () => { importBackupFile(dom.backupFileInput.files?.[0]).catch((error) => showToast(error.message || "备份导入失败")); dom.backupFileInput.value = ""; });
+  dom.syncNowButton.addEventListener("click", syncNow);
+  dom.clearLocalButton.addEventListener("click", clearLocalCache);
+  dom.openAccountSignOutButton.addEventListener("click", () => window.BiejiCloud?.signOut());
+  dom.heroFocusButton.addEventListener("click", openFocusModal);
+  dom.heroImportAction.addEventListener("click", () => dom.openImportButton.click());
   dom.focusButton.addEventListener("click", openFocusModal);
   dom.designButton.addEventListener("click", openDesignModal);
   dom.reminderSettingsButton.addEventListener("click", openReminderSettings);
@@ -2550,6 +2634,8 @@ async function init() {
     removeMinimalImageButton: $("#removeMinimalImageButton"),
     minimalAnalyzeButton: $("#minimalAnalyzeButton"),
     focusButton: $("#focusButton"),
+    heroFocusButton: $("#heroFocusButton"),
+    heroImportAction: $("#heroImportAction"),
     designButton: $("#designButton"),
     reminderSettingsButton: $("#reminderSettingsButton"),
     focusModal: $("#focusModal"),
@@ -2576,6 +2662,24 @@ async function init() {
     requestNotificationPermissionButton: $("#requestNotificationPermissionButton"),
     notificationPermissionStatus: $("#notificationPermissionStatus"),
     saveReminderSettingsButton: $("#saveReminderSettingsButton"),
+    personalName: $("#personalName"),
+    personalAvatar: $("#personalAvatar"),
+    personalSyncStatus: $("#personalSyncStatus"),
+    accountManageButton: $("#accountManageButton"),
+    exportBackupButton: $("#exportBackupButton"),
+    accountExportButton: $("#accountExportButton"),
+    accountModal: $("#accountModal"),
+    accountDisplayName: $("#accountDisplayName"),
+    accountAvatar: $("#accountAvatar"),
+    accountStatusText: $("#accountStatusText"),
+    localTaskCount: $("#localTaskCount"),
+    cloudStateText: $("#cloudStateText"),
+    accountModeLabel: $("#accountModeLabel"),
+    syncNowButton: $("#syncNowButton"),
+    importBackupButton: $("#importBackupButton"),
+    clearLocalButton: $("#clearLocalButton"),
+    openAccountSignOutButton: $("#openAccountSignOutButton"),
+    backupFileInput: $("#backupFileInput"),
     petSettingsModal: $("#petSettingsModal"),
     petSettingsForm: $("#petSettingsForm"),
     petEnabled: $("#petEnabled"),
@@ -2608,7 +2712,7 @@ async function init() {
   state.pet = loadPetSettings();
   state.mode = loadMode();
   state.minimalSplit = Number(localStorage.getItem(MINIMAL_SPLIT_KEY) || 50);
-  state.designTheme = localStorage.getItem(DESIGN_KEY) || "warm";
+  state.designTheme = "apex";
   try { state.reminderSettings = { enabled: true, minutes: 15, ...(JSON.parse(localStorage.getItem(REMINDER_SETTINGS_KEY) || "{}")) }; } catch (error) {}
   loadFocusSession();
   if (!state.themes.some((theme) => theme.id === state.activeThemeId)) state.activeThemeId = state.themes[0].id;
@@ -2643,14 +2747,24 @@ async function init() {
       cloudReady = Boolean(authenticated);
       if (!authenticated) resetCloudUserState();
       updateAIStatus();
+      updatePersonalPanel();
     });
     window.BiejiCloud.onSnapshot((snapshot) => {
-      if (cloudReady) applyCloudSnapshot(snapshot);
+      if (!cloudReady) return;
+      if (cloudDirty) { syncNow(); return; }
+      applyCloudSnapshot(snapshot);
+      updatePersonalPanel();
     });
+    window.addEventListener("online", () => {
+      if (cloudReady && cloudDirty) syncNow();
+      updatePersonalPanel();
+    });
+    window.addEventListener("offline", updatePersonalPanel);
     try {
       const cloud = await window.BiejiCloud.init();
       cloudReady = Boolean(cloud.authenticated);
       if (cloud.authenticated && cloud.snapshot) applyCloudSnapshot(cloud.snapshot);
+      updatePersonalPanel();
     } catch (error) {
       showToast("云端初始化失败，当前使用本地数据");
     }

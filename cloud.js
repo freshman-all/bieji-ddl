@@ -11,6 +11,7 @@
   let pollTimer = null;
   let lastSnapshotSignature = "";
   let authUiBound = false;
+  let offlineMode = !navigator.onLine;
 
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }
@@ -61,6 +62,14 @@
     return data;
   }
 
+  function isNetworkError(error) {
+    return /fetch failed|Failed to fetch|NetworkError|网络连接失败|Load failed|ERR_NETWORK/i.test(String(error?.message || error));
+  }
+
+  function displayName(user) {
+    return user?.user_metadata?.username || user?.user_metadata?.display_name || user?.email?.split("@")[0] || "已登录用户";
+  }
+
   function friendlyError(error) {
     const message = String(error?.message || error || "请求失败");
     if (/Invalid login credentials/i.test(message)) return "邮箱或密码不正确";
@@ -90,7 +99,7 @@
       saveSession(data);
       return true;
     } catch (error) {
-      saveSession(null);
+      if (!isNetworkError(error)) saveSession(null);
       return false;
     }
   }
@@ -166,7 +175,7 @@
     const email = document.getElementById("accountEmail");
     if (!area) return;
     area.hidden = !user;
-    if (email) email.textContent = user?.email || "";
+    if (email) email.textContent = displayName(user);
   }
 
   function setAuthError(message, success = false) {
@@ -246,7 +255,7 @@
     stopPolling();
     const interval = Math.max(3000, Number(cfg.pollIntervalMs) || 5000);
     pollTimer = window.setInterval(async () => {
-      if (document.hidden || !session) return;
+      if (document.hidden || !session || offlineMode) return;
       try { await refreshNow(); } catch (error) { /* The next poll can recover. */ }
     }, interval);
   }
@@ -290,8 +299,10 @@
     }
     if (demoButton) demoButton.addEventListener("click", () => showAuth(false));
     if (signOutButton) signOutButton.addEventListener("click", signOut);
-    window.addEventListener("focus", () => { if (session) refreshNow().catch(() => {}); });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden && session) refreshNow().catch(() => {}); });
+    window.addEventListener("focus", () => { if (session && !offlineMode) refreshNow().catch(() => {}); });
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && session && !offlineMode) refreshNow().catch(() => {}); });
+    window.addEventListener("online", () => { offlineMode = false; if (session) refreshNow().catch(() => {}); });
+    window.addEventListener("offline", () => { offlineMode = true; });
   }
 
   async function init() {
@@ -302,6 +313,13 @@
       return { enabled: false, authenticated: false, snapshot: null };
     }
     if (!(await ensureSession())) {
+      if (session?.user) {
+        offlineMode = true;
+        showAuth(false);
+        showAccount(session.user);
+        emitAuth(session.user);
+        return { enabled: true, authenticated: true, offline: true, user: session.user, snapshot: null };
+      }
       showAuth(true);
       showAccount(null);
       return { enabled: true, authenticated: false, snapshot: null };
@@ -316,6 +334,13 @@
       startPolling();
       return { enabled: true, authenticated: true, user, snapshot };
     } catch (error) {
+      if (isNetworkError(error) && session?.user) {
+        offlineMode = true;
+        showAuth(false);
+        showAccount(session.user);
+        emitAuth(session.user);
+        return { enabled: true, authenticated: true, offline: true, user: session.user, snapshot: null };
+      }
       saveSession(null);
       showAuth(true);
       showAccount(null);
@@ -336,7 +361,9 @@
     parseNotice,
     removeBackground,
     isReady: () => Boolean(enabled && session),
+    isOffline: () => offlineMode,
     getUserEmail: () => session?.user?.email || "",
+    getUsername: () => displayName(session?.user),
     onAuth: (callback) => authListeners.push(callback),
     onSnapshot: (callback) => snapshotListeners.push(callback)
   };
