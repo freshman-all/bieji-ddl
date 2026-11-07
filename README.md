@@ -31,3 +31,12 @@
 
 Cloud 配置为空时，页面保持本地演示模式，不需要 Supabase。
 完成 `PRODUCTION_DEPLOY.md` 中的配置后，页面会出现登录/注册界面并启用云端同步。
+
+## 在线地址
+
+- 网站：https://freshman-all.github.io/bieji-ddl/
+- 仓库：https://github.com/freshman-all/bieji-ddl
+
+## 云端账号说明
+
+当前 `cloud-config.js` 仍使用本地演示配置。接入 Supabase 项目后，把 Project URL 和 anon public key 填入 `cloud-config.js`，并将 `enableCloud` 改为 `true`，即可启用登录和跨设备同步。
