@@ -27,6 +27,40 @@
     return data?.expires_at ? Number(data.expires_at) * 1000 : 0;
   }
 
+  function usernameToEmail(value) {
+    const input = String(value || "").trim();
+    if (input.includes("@")) return input.toLowerCase();
+    return `${input.toLowerCase()}@users.bieji-ddl.app`;
+  }
+
+  function validateUsername(value) {
+    const username = String(value || "").trim();
+    if (!/^[A-Za-z0-9_]{3,24}$/.test(username)) throw new Error("用户名需要 3-24 位，只能包含字母、数字和下划线");
+    return username;
+  }
+
+  function validatePassword(password) {
+    const value = String(password || "");
+    if (value.length < 12) throw new Error("密码至少需要 12 位");
+    if (!/[a-z]/.test(value)) throw new Error("密码需要包含小写字母");
+    if (!/[A-Z]/.test(value)) throw new Error("密码需要包含大写字母");
+    if (!/[0-9]/.test(value)) throw new Error("密码需要包含数字");
+    if (!/[^A-Za-z0-9]/.test(value)) throw new Error("密码需要包含符号");
+    return value;
+  }
+
+  async function removeBackground(imageData) {
+    if (!(await ensureSession())) throw new Error("请先登录后再使用 AI 抠图");
+    const response = await fetch(`${baseUrl}/functions/v1/remove-background`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "apikey": cfg.supabaseAnonKey, "Authorization": `Bearer ${session.access_token}` },
+      body: JSON.stringify({ imageData })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || data.message || `AI 抠图返回 ${response.status}`);
+    return data;
+  }
+
   function friendlyError(error) {
     const message = String(error?.message || error || "请求失败");
     if (/Invalid login credentials/i.test(message)) return "邮箱或密码不正确";
@@ -152,7 +186,8 @@
   }
 
   async function signIn(email, password) {
-    const data = await authRequest("token?grant_type=password", { email, password });
+    const loginEmail = usernameToEmail(email);
+    const data = await authRequest("token?grant_type=password", { email: loginEmail, password });
     data.expires_at = Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600);
     saveSession(data);
     showAuth(false);
@@ -164,8 +199,10 @@
     return snapshot;
   }
 
-  async function signUp(email, password) {
-    const data = await authRequest("signup", { email, password });
+  async function signUp(username, password) {
+    const cleanUsername = validateUsername(username);
+    validatePassword(password);
+    const data = await authRequest("signup", { email: usernameToEmail(cleanUsername), password, data: { username: cleanUsername, display_name: cleanUsername } });
     if (data.access_token) {
       data.expires_at = Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600);
       saveSession(data);
@@ -297,6 +334,7 @@
     loadSnapshot,
     saveSnapshot,
     parseNotice,
+    removeBackground,
     isReady: () => Boolean(enabled && session),
     getUserEmail: () => session?.user?.email || "",
     onAuth: (callback) => authListeners.push(callback),

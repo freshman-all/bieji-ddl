@@ -9,6 +9,9 @@ const KEYWORD_RULES_KEY = "bieji-ddl-v4-keyword-rules";
 const PET_SETTINGS_KEY = "bieji-ddl-v4-pet";
 const MINIMAL_SPLIT_KEY = "bieji-ddl-v4-minimal-split";
 const ALL_THEME_ID = "all";
+const DESIGN_KEY = "bieji-ddl-design-theme";
+const FOCUS_KEY = "bieji-ddl-focus-session";
+const REMINDER_SETTINGS_KEY = "bieji-ddl-reminder-settings";
 const PERIOD_LABELS = { today: "今天", tomorrow: "明天", week: "本周", month: "本月", history: "历史" };
 const PERIOD_HINTS = {
   today: "先完成红色事项，再处理其余安排。",
@@ -49,7 +52,7 @@ const DEFAULT_KEYWORD_RULES = [
   { label: "生活", keywords: "快递, 账单, 值日, 充值, 宿舍" },
   { label: "作业", keywords: "作业, 报告, PPT, 提交, 截止, 课程设计" }
 ];
-const DEFAULT_PET = { enabled: true, name: "小别", emoji: "🐱", image: "", position: null };
+const DEFAULT_PET = { enabled: true, name: "小别", emoji: "🐱", preset: "default", image: "", position: null };
 
 const state = {
   themes: [],
@@ -75,8 +78,16 @@ const state = {
   minimalSplit: 50,
   minimalImageData: "",
   minimalHash: "",
-  importTextHash: ""
+  importTextHash: "",
+  designTheme: "warm",
+  focusSky: "day",
+  focusSession: null,
+  reminderSettings: { enabled: true, minutes: 15 }
 };
+
+let focusTimer = null;
+let notificationTimers = new Map();
+let petClickTimer = null;
 
 let cloudReady = false;
 let cloudHydrating = false;
@@ -260,6 +271,8 @@ function buildCloudPayload() {
       mode: state.mode,
       pet: state.pet,
       keywordRules: state.keywordRules,
+      designTheme: state.designTheme,
+      reminderSettings: state.reminderSettings,
       aiSettings: {
         urgentKeywords: state.aiConfig.urgentKeywords,
         ignoredKeywords: state.aiConfig.ignoredKeywords
@@ -309,6 +322,7 @@ function normalizeCloudTask(task) {
     urgency: task.urgency || "auto",
     status: task.status || "todo",
     reminder15: Boolean(task.reminder15 ?? task.reminder_15 ?? false),
+    reminderMinutes: Number(task.reminderMinutes ?? task.reminder_minutes ?? 15),
     deleted: Boolean(task.deleted || false),
     rawTextHash: task.rawTextHash || task.raw_text_hash || ""
   };
@@ -328,6 +342,8 @@ function applyCloudSnapshot(snapshot) {
   state.events = rawTasks.map(normalizeCloudTask);
   state.mode = profile.mode === "minimal" ? "minimal" : "detail";
   state.pet = { ...DEFAULT_PET, ...(profile.pet || {}) };
+  state.designTheme = profile.designTheme || "warm";
+  state.reminderSettings = { enabled: true, minutes: 15, ...(profile.reminderSettings || {}) };
   state.keywordRules = Array.isArray(profile.keywordRules) ? profile.keywordRules : DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
   const aiSettings = profile.aiSettings || {};
   state.aiConfig = {
@@ -345,6 +361,7 @@ function applyCloudSnapshot(snapshot) {
   } catch (error) { /* Cloud data remains available in memory. */ }
   cloudHydrating = false;
   applyMode(state.mode);
+  applyDesignTheme(state.designTheme, false);
   updateAIStatus();
   renderAll();
   if (firstRun) window.setTimeout(scheduleCloudSave, 300);
@@ -743,11 +760,14 @@ function setMinimalReminder() {
     showToast("请先长按卡片补充时间");
     return;
   }
-  event.reminder15 = true;
+  const minutes = Number(state.reminderSettings.minutes ?? 15);
+  if (minutes <= 0) { showToast("请先在提醒设置中选择提前时间"); return; }
+  event.reminderMinutes = minutes;
+  event.reminder15 = minutes === 15;
   saveEvents();
-  downloadReminder(event, 15);
+  downloadReminder(event, minutes);
   renderMinimalScreen();
-  showToast("已标记并生成提前 15 分钟提醒");
+  showToast(`已标记并生成提前 ${minutes} 分钟提醒`);
 }
 
 async function analyzeMinimalInput() {
@@ -792,6 +812,221 @@ async function analyzeMinimalInput() {
   }
 }
 
+
+function applyDesignTheme(name, persist = true) {
+  const allowed = ["warm", "editorial", "brutal", "glass", "night"];
+  state.designTheme = allowed.includes(name) ? name : "warm";
+  document.body.dataset.design = state.designTheme;
+  localStorage.setItem(DESIGN_KEY, state.designTheme);
+  $$(".design-option").forEach((button) => button.classList.toggle("is-active", button.dataset.design === state.designTheme));
+  if (persist) scheduleCloudSave();
+}
+
+function openDesignModal() {
+  $$(".design-option").forEach((button) => button.classList.toggle("is-active", button.dataset.design === state.designTheme));
+  openModal("designModal");
+}
+
+function updateNotificationStatus() {
+  if (!dom.notificationPermissionStatus) return;
+  if (!("Notification" in window)) { dom.notificationPermissionStatus.textContent = "当前浏览器不支持通知"; return; }
+  const labels = { granted: "已授权", denied: "已拒绝，请在浏览器设置中修改", default: "尚未授权" };
+  dom.notificationPermissionStatus.textContent = labels[Notification.permission] || "未知状态";
+}
+
+async function requestNotificationPermission() {
+  if (!("Notification" in window)) { showToast("当前浏览器不支持通知权限"); return false; }
+  const permission = await Notification.requestPermission();
+  updateNotificationStatus();
+  showToast(permission === "granted" ? "通知权限已开启" : "通知权限未开启");
+  return permission === "granted";
+}
+
+function scheduleTaskNotifications() {
+  notificationTimers.forEach((timer) => window.clearTimeout(timer));
+  notificationTimers.clear();
+  if (!state.reminderSettings.enabled || !("Notification" in window) || Notification.permission !== "granted") return;
+  const now = Date.now();
+  state.events.filter((event) => !event.deleted && event.status !== "done" && event.dueTime && Number(event.reminderMinutes) > 0)
+    .forEach((event) => {
+      const due = new Date(event.dueTime).getTime();
+      const triggerAt = due - Number(event.reminderMinutes) * 60000;
+      const delay = triggerAt - now;
+      if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
+        const timer = window.setTimeout(() => {
+          try {
+            new Notification("别急 DDL 任务提醒", { body: `${event.title} · ${event.location || "查看任务详情"}`, tag: event.id });
+          } catch (error) { /* Notification can fail in background-restricted browsers. */ }
+        }, delay);
+        notificationTimers.set(event.id, timer);
+      }
+    });
+}
+
+function openReminderSettings() {
+  dom.reminderEnabled.checked = Boolean(state.reminderSettings.enabled);
+  dom.defaultReminderMinutes.value = String(state.reminderSettings.minutes ?? 15);
+  updateNotificationStatus();
+  openModal("reminderModal");
+}
+
+function saveReminderSettings() {
+  state.reminderSettings = {
+    enabled: dom.reminderEnabled.checked,
+    minutes: Number(dom.defaultReminderMinutes.value || 0)
+  };
+  localStorage.setItem(REMINDER_SETTINGS_KEY, JSON.stringify(state.reminderSettings));
+  scheduleCloudSave();
+  scheduleTaskNotifications();
+  closeModal("reminderModal");
+  showToast("提醒设置已保存");
+}
+
+
+function saveFocusSession() {
+  if (state.focusSession) localStorage.setItem(FOCUS_KEY, JSON.stringify(state.focusSession));
+  else localStorage.removeItem(FOCUS_KEY);
+}
+
+function loadFocusSession() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FOCUS_KEY) || "null");
+    if (saved && saved.status !== "done") {
+      state.focusSession = saved;
+      if (saved.status === "running" && saved.endAt) saved.remainingSeconds = Math.max(0, Math.ceil((saved.endAt - Date.now()) / 1000));
+    }
+  } catch (error) { state.focusSession = null; }
+}
+
+function formatFocusTime(seconds) {
+  const safe = Math.max(0, Math.floor(seconds || 0));
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function openFocusModal() {
+  if (!dom.focusStartTime.value) {
+    const date = new Date(Date.now() + 30 * 60000);
+    date.setSeconds(0, 0);
+    dom.focusStartTime.value = toLocalInputValue(date);
+  }
+  dom.focusSetup.hidden = Boolean(state.focusSession);
+  dom.focusFlight.hidden = !state.focusSession;
+  dom.focusSky.dataset.sky = state.focusSky;
+  $$(".focus-preset").forEach((button) => button.classList.toggle("is-active", button.dataset.focusSky === state.focusSky));
+  renderFocusSession();
+  openModal("focusModal");
+}
+
+function renderFocusSession() {
+  if (!state.focusSession) return;
+  const session = state.focusSession;
+  if (session.status === "running" && session.endAt) session.remainingSeconds = Math.max(0, Math.ceil((session.endAt - Date.now()) / 1000));
+  const total = Math.max(1, Number(session.durationSeconds || 1));
+  const progress = Math.min(1, Math.max(0, 1 - Number(session.remainingSeconds || 0) / total));
+  dom.focusSessionTitle.textContent = session.title || "专注中";
+  dom.focusRemaining.textContent = formatFocusTime(session.remainingSeconds);
+  dom.focusRouteFill.style.width = `${progress * 100}%`;
+  const skyWidth = dom.focusSky.clientWidth || 500;
+  dom.focusPlane.style.left = `${28 + progress * Math.max(0, skyWidth - 82)}px`;
+  dom.focusPlane.classList.toggle("is-flying", session.status === "running");
+  dom.focusPauseButton.textContent = session.status === "paused" ? "继续" : "暂停";
+  dom.focusSetup.hidden = true;
+  dom.focusFlight.hidden = false;
+}
+
+function playFocusChime() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    [523.25, 659.25, 783.99].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = frequency;
+      oscillator.type = "sine";
+      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.14, context.currentTime + index * 0.18 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.18 + 0.5);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(context.currentTime + index * 0.18);
+      oscillator.stop(context.currentTime + index * 0.18 + 0.55);
+    });
+  } catch (error) { /* Audio may be blocked until user interaction. */ }
+}
+
+function finishFocusSession() {
+  const session = state.focusSession;
+  if (!session) return;
+  window.clearInterval(focusTimer);
+  focusTimer = null;
+  playFocusChime();
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { new Notification("专注完成", { body: `${session.title || "专注练习"}已完成，休息一下。`, tag: "bieji-focus" }); } catch (error) {}
+  }
+  state.focusSession = null;
+  saveFocusSession();
+  dom.focusSetup.hidden = false;
+  dom.focusFlight.hidden = true;
+  showToast("专注完成，休息一下");
+}
+
+function startFocusTimer() {
+  const minutes = Number(dom.focusDuration.value || 25);
+  const title = dom.focusTaskTitle.value.trim() || "专注练习";
+  state.focusSession = { title, durationMinutes: minutes, durationSeconds: minutes * 60, remainingSeconds: minutes * 60, startAt: Date.now(), endAt: Date.now() + minutes * 60000, status: "running" };
+  saveFocusSession();
+  window.clearInterval(focusTimer);
+  focusTimer = window.setInterval(() => {
+    if (!state.focusSession || state.focusSession.status !== "running") return;
+    state.focusSession.remainingSeconds = Math.max(0, Math.ceil((state.focusSession.endAt - Date.now()) / 1000));
+    if (state.focusSession.remainingSeconds <= 0) finishFocusSession();
+    else renderFocusSession();
+  }, 1000);
+  renderFocusSession();
+  showToast("专注航线已起飞");
+}
+
+function toggleFocusPause() {
+  if (!state.focusSession) return;
+  if (state.focusSession.status === "running") {
+    state.focusSession.remainingSeconds = Math.max(0, Math.ceil((state.focusSession.endAt - Date.now()) / 1000));
+    state.focusSession.status = "paused";
+    state.focusSession.endAt = null;
+    showToast("专注已暂停");
+  } else {
+    state.focusSession.status = "running";
+    state.focusSession.endAt = Date.now() + state.focusSession.remainingSeconds * 1000;
+    showToast("继续专注");
+  }
+  saveFocusSession();
+  renderFocusSession();
+}
+
+function stopFocusTimer() {
+  if (!state.focusSession) return;
+  if (!window.confirm("结束本次专注？")) return;
+  window.clearInterval(focusTimer);
+  focusTimer = null;
+  state.focusSession = null;
+  saveFocusSession();
+  dom.focusSetup.hidden = false;
+  dom.focusFlight.hidden = true;
+}
+
+function addFocusToTimeline() {
+  const title = dom.focusTaskTitle.value.trim() || "专注练习";
+  const minutes = Number(dom.focusDuration.value || 25);
+  const dueValue = dom.focusStartTime.value || toLocalInputValue(new Date());
+  const themeId = state.activeThemeId === ALL_THEME_ID ? (state.themes[0]?.id || "study") : state.activeThemeId;
+  const event = { id: uid(), themeId, title, category: "专注", source: "专注航线", dueTime: toISOStringFromLocal(dueValue), location: "专注模式", nextAction: `开始 ${minutes} 分钟专注`, requirements: `本次计划专注 ${minutes} 分钟。`, urgency: "auto", reminderMinutes: Number(state.reminderSettings.minutes || 15), status: "todo" };
+  state.events.push(event);
+  saveEvents();
+  setPeriodForDate(event.dueTime);
+  closeModal("focusModal");
+  renderAll();
+  showToast("专注安排已加入时间线");
+}
+
 function renderAll() {
   renderThemes();
   renderThemeHero();
@@ -799,6 +1034,7 @@ function renderAll() {
   updateAIStatus();
   if (dom.desktopPet) renderPet();
   if (dom.minimalScreen) renderMinimalScreen();
+  scheduleTaskNotifications();
 }
 
 let toastTimer = null;
@@ -887,6 +1123,7 @@ function openTaskModal(themeId = state.activeThemeId) {
   dom.taskCategory.value = "作业";
   dom.taskDueTime.value = toLocalInputValue(dateAt(1, 20, 0));
   dom.taskUrgency.value = "auto";
+  dom.taskReminderMinutes.value = String(state.reminderSettings.minutes ?? 15);
   dom.customCategoryField.hidden = true;
   openModal("taskModal");
 }
@@ -911,6 +1148,7 @@ function handleTaskSubmit(event) {
     nextAction: dom.taskNextAction.value.trim() || "先确认要求和截止时间",
     requirements: dom.taskRequirements.value.trim(),
     urgency: dom.taskUrgency.value,
+    reminderMinutes: Number(dom.taskReminderMinutes.value || 0),
     status: "todo"
   };
   state.events.push(newEvent);
@@ -1284,9 +1522,12 @@ function confirmImport() {
   showToast(`已加入 ${imported.length} 件事项`);
 }
 function getReminderMinutes(event) {
-  return { "上课": 30, "作业": 120, "打卡": 30, "表单": 30, "网课": 120, "考试": 1440, "运动": 30, "游戏": 30, "生活": 30 }[event.category] || 30;
+  const own = Number(event.reminderMinutes);
+  if (Number.isFinite(own) && own >= 0) return own;
+  return { "上课": 30, "作业": 120, "打卡": 30, "表单": 30, "网课": 120, "考试": 1440, "运动": 30, "游戏": 30, "生活": 30, "专注": 5 }[event.category] || 30;
 }
 function reminderText(minutes) {
+  if (Number(minutes) === 0) return "不提醒";
   if (minutes >= 1440) return `提前 ${minutes / 1440} 天`;
   if (minutes >= 60) return `提前 ${minutes / 60} 小时`;
   return `提前 ${minutes} 分钟`;
@@ -1321,6 +1562,7 @@ function downloadReminder(event, overrideMinutes = null) {
   const due = toDate(event.dueTime);
   if (!due) { showToast("请先补充事项时间"); return; }
   const minutes = overrideMinutes ?? getReminderMinutes(event);
+  if (Number(minutes) === 0) { showToast("这个任务设置为不提醒"); return; }
   const end = new Date(due.getTime() + 30 * 60000);
   const lines = [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Bieji DDL 2//Campus Timeline//ZH-CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
@@ -1387,8 +1629,8 @@ function bindSidebars() {
       document.body.classList.remove("left-open");
       updateScrim();
     } else {
-      document.body.classList.add("left-collapsed");
-      dom.sidebarToggle.setAttribute("aria-expanded", "false");
+      document.body.classList.toggle("left-collapsed");
+      dom.sidebarToggle.setAttribute("aria-expanded", document.body.classList.contains("left-collapsed") ? "false" : "true");
     }
   });
   dom.mobileFilterButton.addEventListener("click", handleMobileFilter);
@@ -1642,6 +1884,7 @@ function openDetailEdit(field = "time") {
   dom.editTaskSource.value = event.source || "";
   dom.editTaskDueTime.value = toLocalInputValue(event.dueTime);
   dom.editTaskUrgency.value = event.urgency || "auto";
+  dom.editTaskReminderMinutes.value = String(event.reminderMinutes ?? state.reminderSettings.minutes ?? 15);
   dom.editTaskLocation.value = event.location || "";
   dom.editTaskNextAction.value = event.nextAction || "";
   dom.editTaskRequirements.value = event.requirements || "";
@@ -1663,6 +1906,7 @@ function handleDetailEditSubmit(event) {
   target.location = dom.editTaskLocation.value.trim();
   target.nextAction = dom.editTaskNextAction.value.trim();
   target.requirements = dom.editTaskRequirements.value.trim();
+  target.reminderMinutes = Number(dom.editTaskReminderMinutes.value || 0);
   saveEvents();
   renderAll();
   openDetail(target.id);
@@ -1683,6 +1927,7 @@ function openPetSettings() {
   dom.petEnabled.checked = state.pet.enabled;
   dom.petName.value = state.pet.name || "小别";
   dom.petEmoji.value = state.pet.emoji || "🐱";
+  dom.petPreset.value = state.pet.preset || "default";
   updatePetPreview();
   openModal("petSettingsModal");
 }
@@ -1694,7 +1939,11 @@ function renderPet() {
   const hasImage = Boolean(state.pet.image);
   dom.petImage.hidden = !hasImage;
   dom.petFallback.hidden = hasImage;
-  dom.petFallback.textContent = state.pet.emoji || "🐱";
+  const preset = state.pet.preset || "default";
+  dom.petFallback.textContent = preset === "dragon" ? "🐲" : preset === "dumpling" ? "👶" : (state.pet.emoji || "🐱");
+  dom.desktopPet.classList.remove("preset-dragon", "preset-dumpling", "is-dancing", "is-laughing");
+  if (preset === "dragon") dom.desktopPet.classList.add("preset-dragon");
+  if (preset === "dumpling") dom.desktopPet.classList.add("preset-dumpling");
   if (hasImage) dom.petImage.src = state.pet.image;
   const position = state.pet.position;
   if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) {
@@ -1729,6 +1978,7 @@ function handlePetSettingsSubmit(event) {
     enabled: dom.petEnabled.checked,
     name: dom.petName.value.trim() || "小别",
     emoji: dom.petEmoji.value,
+    preset: dom.petPreset.value,
     image: state.petImageDraft
   });
   closeModal("petSettingsModal");
@@ -1763,6 +2013,71 @@ function resetDemoData() {
   saveEvents();
   renderAll();
   showToast("演示数据已恢复");
+}
+
+function triggerPetSpecial() {
+  if (state.pet.preset === "dragon") {
+    dom.desktopPet.classList.remove("is-dancing");
+    void dom.desktopPet.offsetWidth;
+    dom.desktopPet.classList.add("is-dancing");
+    window.setTimeout(() => dom.desktopPet.classList.remove("is-dancing"), 3200);
+    showToast("云龙开始跳一段原创节奏舞");
+    return;
+  }
+  if (state.pet.preset === "dumpling") {
+    playDumplingLaugh();
+    dom.desktopPet.classList.remove("is-laughing");
+    void dom.desktopPet.offsetWidth;
+    dom.desktopPet.classList.add("is-laughing");
+    window.setTimeout(() => dom.desktopPet.classList.remove("is-laughing"), 1900);
+    showToast("团子笑出了声");
+    return;
+  }
+  handlePetClick();
+}
+
+function playDumplingLaugh() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const notes = [660, 820, 740, 880, 700];
+    notes.forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, context.currentTime + index * 0.12);
+      oscillator.frequency.exponentialRampToValueAtTime(frequency * 1.18, context.currentTime + index * 0.12 + 0.07);
+      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + index * 0.12 + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.12 + 0.22);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(context.currentTime + index * 0.12);
+      oscillator.stop(context.currentTime + index * 0.12 + 0.24);
+    });
+  } catch (error) { /* Audio requires user interaction. */ }
+}
+
+async function removePetBackgroundAI() {
+  const source = state.petOriginalDraft || state.petImageDraft;
+  if (!source) { showToast("请先上传桌宠图片"); return; }
+  if (!window.BiejiCloud?.isReady()) { showToast("请先登录云账号后再使用 AI 抠图"); return; }
+  const button = dom.removePetBackgroundAIButton;
+  button.disabled = true;
+  button.textContent = "AI 抠图中…";
+  try {
+    const result = await window.BiejiCloud.removeBackground(source);
+    if (!result.imageData) throw new Error("AI 没有返回图片");
+    state.petImageDraft = result.imageData;
+    state.petOriginalDraft = result.imageData;
+    updatePetPreview();
+    showToast("AI 抠图完成");
+  } catch (error) {
+    showToast(error.message || "AI 抠图失败，可改用本地抠图");
+  } finally {
+    button.disabled = false;
+    button.textContent = "AI 智能抠图";
+  }
 }
 
 function updatePetImageFile(file) {
@@ -1948,6 +2263,27 @@ function bindMinimalActions() {
 }
 
 function bindV3Actions() {
+  dom.focusButton.addEventListener("click", openFocusModal);
+  dom.designButton.addEventListener("click", openDesignModal);
+  dom.reminderSettingsButton.addEventListener("click", openReminderSettings);
+  dom.designGrid.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-design]");
+    if (button) applyDesignTheme(button.dataset.design, true);
+  });
+  dom.focusStartButton.addEventListener("click", startFocusTimer);
+  dom.focusPauseButton.addEventListener("click", toggleFocusPause);
+  dom.focusStopButton.addEventListener("click", stopFocusTimer);
+  dom.focusScheduleButton.addEventListener("click", addFocusToTimeline);
+  dom.focusNotificationButton.addEventListener("click", requestNotificationPermission);
+  dom.requestNotificationPermissionButton.addEventListener("click", requestNotificationPermission);
+  dom.saveReminderSettingsButton.addEventListener("click", saveReminderSettings);
+  $$(".focus-preset").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.focusSky = button.dataset.focusSky || "day";
+      dom.focusSky.dataset.sky = state.focusSky;
+      $$(".focus-preset").forEach((item) => item.classList.toggle("is-active", item === button));
+    });
+  });
   dom.modeSwitch.addEventListener("click", (event) => {
     const button = event.target.closest("[data-mode]");
     if (button) applyMode(button.dataset.mode);
@@ -2003,8 +2339,14 @@ function bindV3Actions() {
   dom.petSettingsForm.addEventListener("submit", handlePetSettingsSubmit);
   dom.petImageInput.addEventListener("change", () => updatePetImageFile(dom.petImageInput.files?.[0]));
   dom.petEmoji.addEventListener("change", updatePetPreview);
+  dom.petPreset.addEventListener("change", () => {
+    if (dom.petPreset.value === "dragon") dom.petEmoji.value = "🐲";
+    if (dom.petPreset.value === "dumpling") dom.petEmoji.value = "👶";
+    updatePetPreview();
+  });
   dom.clearPetImageButton.addEventListener("click", () => { state.petImageDraft = ""; state.petOriginalDraft = ""; updatePetPreview(); });
   dom.removePetBackgroundButton.addEventListener("click", removePetBackground);
+  dom.removePetBackgroundAIButton.addEventListener("click", removePetBackgroundAI);
   let petDrag = null;
   dom.desktopPet.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
@@ -2034,11 +2376,17 @@ function bindV3Actions() {
       savePetSettings({ ...state.pet, position: { x: rect.left / window.innerWidth, y: rect.top / window.innerHeight } });
       showToast("桌宠位置已保存");
     } else {
-      handlePetClick();
+      window.clearTimeout(petClickTimer);
+      petClickTimer = window.setTimeout(() => handlePetClick(), 300);
     }
   };
   dom.desktopPet.addEventListener("pointerup", finishPetDrag);
   dom.desktopPet.addEventListener("pointercancel", finishPetDrag);
+  dom.desktopPet.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    window.clearTimeout(petClickTimer);
+    triggerPetSpecial();
+  });
   dom.desktopPet.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handlePetClick(); }
   });
@@ -2129,6 +2477,7 @@ async function init() {
     customCategoryField: $("#customCategoryField"),
     taskDueTime: $("#taskDueTime"),
     taskUrgency: $("#taskUrgency"),
+    taskReminderMinutes: $("#taskReminderMinutes"),
     taskLocation: $("#taskLocation"),
     taskNextAction: $("#taskNextAction"),
     taskRequirements: $("#taskRequirements"),
@@ -2161,6 +2510,7 @@ async function init() {
     editTaskSource: $("#editTaskSource"),
     editTaskDueTime: $("#editTaskDueTime"),
     editTaskUrgency: $("#editTaskUrgency"),
+    editTaskReminderMinutes: $("#editTaskReminderMinutes"),
     editTaskLocation: $("#editTaskLocation"),
     editTaskNextAction: $("#editTaskNextAction"),
     editTaskRequirements: $("#editTaskRequirements"),
@@ -2199,16 +2549,45 @@ async function init() {
     minimalImagePreview: $("#minimalImagePreview"),
     removeMinimalImageButton: $("#removeMinimalImageButton"),
     minimalAnalyzeButton: $("#minimalAnalyzeButton"),
+    focusButton: $("#focusButton"),
+    designButton: $("#designButton"),
+    reminderSettingsButton: $("#reminderSettingsButton"),
+    focusModal: $("#focusModal"),
+    focusSetup: $("#focusSetup"),
+    focusFlight: $("#focusFlight"),
+    focusTaskTitle: $("#focusTaskTitle"),
+    focusDuration: $("#focusDuration"),
+    focusStartTime: $("#focusStartTime"),
+    focusSky: $("#focusSky"),
+    focusRouteFill: $("#focusRouteFill"),
+    focusPlane: $("#focusPlane"),
+    focusSessionTitle: $("#focusSessionTitle"),
+    focusRemaining: $("#focusRemaining"),
+    focusStartButton: $("#focusStartButton"),
+    focusPauseButton: $("#focusPauseButton"),
+    focusStopButton: $("#focusStopButton"),
+    focusScheduleButton: $("#focusScheduleButton"),
+    focusNotificationButton: $("#focusNotificationButton"),
+    designModal: $("#designModal"),
+    designGrid: $("#designGrid"),
+    reminderModal: $("#reminderModal"),
+    reminderEnabled: $("#reminderEnabled"),
+    defaultReminderMinutes: $("#defaultReminderMinutes"),
+    requestNotificationPermissionButton: $("#requestNotificationPermissionButton"),
+    notificationPermissionStatus: $("#notificationPermissionStatus"),
+    saveReminderSettingsButton: $("#saveReminderSettingsButton"),
     petSettingsModal: $("#petSettingsModal"),
     petSettingsForm: $("#petSettingsForm"),
     petEnabled: $("#petEnabled"),
     petName: $("#petName"),
     petEmoji: $("#petEmoji"),
+    petPreset: $("#petPreset"),
     petImageInput: $("#petImageInput"),
     petPreviewImage: $("#petPreviewImage"),
     petPreviewEmoji: $("#petPreviewEmoji"),
     petBgTolerance: $("#petBgTolerance"),
     removePetBackgroundButton: $("#removePetBackgroundButton"),
+    removePetBackgroundAIButton: $("#removePetBackgroundAIButton"),
     clearPetImageButton: $("#clearPetImageButton"),
     desktopPet: $("#desktopPet"),
     petImage: $("#petImage"),
@@ -2229,6 +2608,9 @@ async function init() {
   state.pet = loadPetSettings();
   state.mode = loadMode();
   state.minimalSplit = Number(localStorage.getItem(MINIMAL_SPLIT_KEY) || 50);
+  state.designTheme = localStorage.getItem(DESIGN_KEY) || "warm";
+  try { state.reminderSettings = { enabled: true, minutes: 15, ...(JSON.parse(localStorage.getItem(REMINDER_SETTINGS_KEY) || "{}")) }; } catch (error) {}
+  loadFocusSession();
   if (!state.themes.some((theme) => theme.id === state.activeThemeId)) state.activeThemeId = state.themes[0].id;
 
   populateThemeSelects();
@@ -2241,9 +2623,20 @@ async function init() {
   bindV3Actions();
   bindMinimalActions();
   applyMode(state.mode);
+  applyDesignTheme(state.designTheme, false);
   updateScrim();
   updateAIStatus();
   renderAll();
+  if (state.focusSession) {
+    focusTimer = window.setInterval(() => {
+      if (!state.focusSession) return;
+      if (state.focusSession.status === "running") {
+        state.focusSession.remainingSeconds = Math.max(0, Math.ceil((state.focusSession.endAt - Date.now()) / 1000));
+        if (state.focusSession.remainingSeconds <= 0) finishFocusSession();
+        else renderFocusSession();
+      }
+    }, 1000);
+  }
 
   if (window.BiejiCloud?.enabled) {
     window.BiejiCloud.onAuth(({ authenticated }) => {

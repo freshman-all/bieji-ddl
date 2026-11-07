@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#18352e">
-  <title>别急 DDL 正式版 - 主题化校园时间中枢</title>
+  <title>别急 DDL 1.5 - 主题化校园时间中枢</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -19,13 +19,13 @@
       <h1>登录你的时间中枢</h1>
       <p>登录后，主题、任务、桌宠和关键词会保存到云端，在不同设备上同步。</p>
       <form id="authForm" class="auth-form">
-        <label class="field"><span>邮箱</span><input id="authEmail" type="email" autocomplete="email" required placeholder="name@example.com"></label>
+        <label class="field"><span>用户名或邮箱</span><input id="authEmail" type="text" autocomplete="username" required placeholder="3-24 位字母、数字或下划线"></label>
         <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="至少 6 位"></label>
         <div class="auth-error" id="authError" hidden></div>
         <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">登录</button><button class="button button-ghost" id="registerButton" type="button">注册账号</button></div>
       </form>
       <button class="auth-demo-button" id="authDemoButton" type="button">先使用本地演示版</button>
-      <small class="auth-note">注册后如开启邮箱验证，请先到邮箱完成确认，再回来登录。</small>
+      <small class="auth-note">用户名注册至少需要 12 位密码，并包含大小写字母、数字和符号。已有邮箱账号也可以直接输入邮箱登录。</small>
     </div>
   </div>
 
@@ -39,12 +39,14 @@
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none"><path d="M16 4.5C9.65 4.5 4.5 9.65 4.5 16s5.15 11.5 11.5 11.5S27.5 22.35 27.5 16 22.35 4.5 16 4.5Z" stroke="currentColor" stroke-width="2.2"/><path d="M16 9v7.2l4.8 2.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </span>
-          <span class="brand-copy"><strong>别急 DDL</strong><small>正式版 · 账号与云端同步</small></span>
+          <span class="brand-copy"><strong>别急 DDL</strong><small>1.5 正式版 · 专注、外观与账号</small></span>
         </a>
         <span class="breadcrumb" id="breadcrumb">学习</span>
       </div>
 
       <div class="topbar-actions">
+        <button class="button button-ghost" id="focusButton" type="button">专注</button>
+        <button class="button button-ghost" id="designButton" type="button">外观</button>
         <div class="account-area" id="accountArea" hidden><span id="accountEmail"></span><button id="accountSignOutButton" type="button">退出</button></div>
         <div class="mode-switch" id="modeSwitch" aria-label="界面版本切换">
           <button class="mode-button is-active" type="button" data-mode="detail">精细版</button>
@@ -108,6 +110,10 @@
         <nav class="theme-list" id="themeList" aria-label="主题列表"></nav>
 
         <div class="sidebar-footer">
+          <button class="sidebar-action" id="reminderSettingsButton" type="button">
+            <span class="sidebar-action-icon">◔</span>
+            <span class="sidebar-action-copy"><strong>提醒设置</strong><small>通知权限与默认时间</small></span>
+          </button>
           <button class="sidebar-action" id="petSettingsButton" type="button">
             <span class="sidebar-action-icon">🐾</span>
             <span class="sidebar-action-copy"><strong>桌宠设置</strong><small>图片、名字与显示</small></span>
@@ -301,6 +307,7 @@
         <label class="field" id="customCategoryField" hidden><span>自定义类型名称</span><input id="taskCustomCategory" type="text" maxlength="20" placeholder="例如：社团、阅读、创作"></label>
         <label class="field"><span>截止或开始时间</span><input id="taskDueTime" type="datetime-local"></label>
         <label class="field"><span>紧急程度</span><select id="taskUrgency"><option value="auto">自动判断</option><option value="red">红色 · 先做</option><option value="yellow">黄色 · 再做</option><option value="green">绿色 · 可以等等</option></select></label>
+        <label class="field"><span>提醒时间</span><select id="taskReminderMinutes"><option value="15">提前 15 分钟</option><option value="5">提前 5 分钟</option><option value="30">提前 30 分钟</option><option value="60">提前 1 小时</option><option value="0">不提醒</option></select></label>
         <label class="field field-full"><span>地点</span><input id="taskLocation" type="text" maxlength="80" placeholder="例如：博学楼 A201、线上"></label>
         <label class="field field-full"><span>下一步行动</span><input id="taskNextAction" type="text" maxlength="100" placeholder="例如：打开模板，先补齐结果分析"></label>
         <label class="field field-full"><span>详细要求</span><textarea id="taskRequirements" rows="3" maxlength="300" placeholder="提交格式、考试范围、需要携带的东西等"></textarea></label>
@@ -367,6 +374,7 @@
           <label class="field"><span>信息来源</span><input id="editTaskSource" type="text" maxlength="40"></label>
           <label class="field"><span>时间</span><input id="editTaskDueTime" type="datetime-local"></label>
           <label class="field"><span>紧急程度</span><select id="editTaskUrgency"><option value="auto">自动判断</option><option value="red">红色 · 先做</option><option value="yellow">黄色 · 再做</option><option value="green">绿色 · 可以等等</option></select></label>
+          <label class="field"><span>提醒时间</span><select id="editTaskReminderMinutes"><option value="15">提前 15 分钟</option><option value="5">提前 5 分钟</option><option value="30">提前 30 分钟</option><option value="60">提前 1 小时</option><option value="0">不提醒</option></select></label>
           <label class="field field-full"><span>地点</span><input id="editTaskLocation" type="text" maxlength="80"></label>
           <label class="field field-full"><span>下一步行动</span><input id="editTaskNextAction" type="text" maxlength="100"></label>
           <label class="field field-full"><span>详细要求</span><textarea id="editTaskRequirements" rows="3" maxlength="300"></textarea></label>
@@ -419,11 +427,13 @@
       <form id="petSettingsForm" class="form-grid">
         <label class="switch-row field-full"><span><strong>显示桌宠</strong><small>显示在页面右下角</small></span><input id="petEnabled" type="checkbox" checked></label>
         <label class="field"><span>桌宠名字</span><input id="petName" type="text" maxlength="16" placeholder="小别"></label>
-        <label class="field"><span>默认形象</span><select id="petEmoji"><option>🐱</option><option>🐶</option><option>🐰</option><option>🐼</option><option>🐤</option><option>✦</option></select></label>
+        <label class="field"><span>动画预设</span><select id="petPreset"><option value="default">默认小别</option><option value="dragon">云龙 · 原创舞步</option><option value="dumpling">团子 · 原创笑声</option></select></label>
+        <label class="field"><span>表情符号</span><select id="petEmoji"><option>🐱</option><option>🐲</option><option>👶</option><option>🐶</option><option>🐰</option><option>🐼</option><option>🐤</option><option>✦</option></select></label>
         <label class="upload-compact field-full"><input id="petImageInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>上传自定义桌宠图片</strong><small>建议使用透明背景 PNG</small></span></label>
         <div class="pet-preview-row field-full"><div class="pet-preview" id="petPreview"><span id="petPreviewEmoji">🐱</span><img id="petPreviewImage" alt="桌宠预览" hidden></div><button class="button button-ghost" id="clearPetImageButton" type="button">恢复默认形象</button></div>
         <label class="field field-full"><span>抠图强度</span><input id="petBgTolerance" type="range" min="10" max="80" value="38"></label>
-        <button class="button button-ghost field-full" id="removePetBackgroundButton" type="button">智能抠图（边缘识色）</button>
+        <button class="button button-ghost field-full" id="removePetBackgroundButton" type="button">本地智能抠图（边缘识色）</button>
+        <button class="button button-primary field-full" id="removePetBackgroundAIButton" type="button">AI 智能抠图</button>
         <div class="form-actions"><button class="button button-primary" type="submit">保存桌宠设置</button></div>
       </form>
       <div class="modal-footer-note">网页刷新或关闭后桌宠会消失。浏览器网页无法在页面外悬浮于电脑桌面。</div>
@@ -440,6 +450,59 @@
     <button type="button" id="petOpenMainButton">打开主页面</button>
     <button type="button" id="petSettingsMenuButton">桌宠设置</button>
     <button type="button" id="petCloseButton">关闭桌宠</button>
+  </div>
+
+
+  <div class="modal" id="focusModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="focusModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="focusTitle">
+      <header class="modal-header"><div><span class="modal-kicker">原创专注航线</span><h2 id="focusTitle">安排一段不被打断的时间</h2></div><button class="icon-button" type="button" data-close-modal="focusModal" aria-label="关闭">×</button></header>
+      <div class="focus-setup" id="focusSetup">
+        <label class="field field-full"><span>这段专注要做什么</span><input id="focusTaskTitle" type="text" maxlength="60" placeholder="例如：完成高数第三章练习"></label>
+        <label class="field"><span>专注时长</span><select id="focusDuration"><option value="15">15 分钟</option><option value="25" selected>25 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option></select></label>
+        <label class="field"><span>计划开始时间</span><input id="focusStartTime" type="datetime-local"></label>
+        <div class="focus-preset-row field-full"><span>航线氛围</span><button class="focus-preset is-active" type="button" data-focus-sky="day">晴空</button><button class="focus-preset" type="button" data-focus-sky="sunset">落日</button><button class="focus-preset" type="button" data-focus-sky="night">夜航</button></div>
+        <div class="form-actions"><button class="button button-ghost" id="focusScheduleButton" type="button">加入时间线</button><button class="button button-primary" id="focusStartButton" type="button">开始专注</button></div>
+      </div>
+      <section class="focus-flight" id="focusFlight" hidden>
+        <div class="focus-sky" id="focusSky">
+          <span class="focus-cloud cloud-a"></span><span class="focus-cloud cloud-b"></span><span class="focus-cloud cloud-c"></span>
+          <div class="focus-route"><span class="focus-route-fill" id="focusRouteFill"></span></div>
+          <span class="focus-plane" id="focusPlane">✈</span>
+        </div>
+        <div class="focus-readout"><span id="focusSessionTitle">专注中</span><strong id="focusRemaining">25:00</strong><small>专注期间只处理这一件事</small></div>
+        <div class="detail-actions"><button class="button button-primary" id="focusPauseButton" type="button">暂停</button><button class="button button-ghost" id="focusStopButton" type="button">结束</button></div>
+      </section>
+      <button class="button button-ghost button-wide focus-permission-button" id="focusNotificationButton" type="button">开启专注结束通知权限</button>
+    </div>
+  </div>
+
+  <div class="modal" id="designModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="designModal"></div>
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="designTitle">
+      <header class="modal-header"><div><span class="modal-kicker">视觉风格</span><h2 id="designTitle">选择网站外观</h2></div><button class="icon-button" type="button" data-close-modal="designModal" aria-label="关闭">×</button></header>
+      <div class="design-grid" id="designGrid">
+        <button class="design-option is-active" type="button" data-design="warm"><span class="design-swatch warm"><i></i><i></i><i></i></span><strong>暖纸原色</strong><small>当前米白、森林绿和暖橙</small></button>
+        <button class="design-option" type="button" data-design="editorial"><span class="design-swatch editorial"><i></i><i></i><i></i></span><strong>编辑杂志</strong><small>高对比、宋体和大标题</small></button>
+        <button class="design-option" type="button" data-design="brutal"><span class="design-swatch brutal"><i></i><i></i><i></i></span><strong>新粗野</strong><small>亮黄、黑线和硬边卡片</small></button>
+        <button class="design-option" type="button" data-design="glass"><span class="design-swatch glass"><i></i><i></i><i></i></span><strong>雾面玻璃</strong><small>蓝紫渐变和半透明层次</small></button>
+        <button class="design-option" type="button" data-design="night"><span class="design-swatch night"><i></i><i></i><i></i></span><strong>夜空航站</strong><small>深蓝背景和青色高光</small></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="reminderModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="reminderModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="reminderTitle">
+      <header class="modal-header"><div><span class="modal-kicker">提醒与闹钟</span><h2 id="reminderTitle">设置提醒权限</h2></div><button class="icon-button" type="button" data-close-modal="reminderModal" aria-label="关闭">×</button></header>
+      <div class="form-grid">
+        <label class="switch-row field-full"><span><strong>启用任务提醒</strong><small>页面打开时在设定时间通知你</small></span><input id="reminderEnabled" type="checkbox" checked></label>
+        <label class="field field-full"><span>新任务默认提前时间</span><select id="defaultReminderMinutes"><option value="5">提前 5 分钟</option><option value="15" selected>提前 15 分钟</option><option value="30">提前 30 分钟</option><option value="60">提前 1 小时</option><option value="0">不提醒</option></select></label>
+        <div class="field field-full reminder-permission-row"><button class="button button-primary" id="requestNotificationPermissionButton" type="button">请求浏览器通知权限</button><span id="notificationPermissionStatus">尚未授权</span></div>
+        <div class="form-actions"><button class="button button-primary" id="saveReminderSettingsButton" type="button">保存提醒设置</button></div>
+      </div>
+      <div class="modal-footer-note">网页版只能申请浏览器通知权限或生成日历提醒，无法直接修改 iOS/Android 系统闹钟；系统闹钟需要原生 App。</div>
+    </div>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

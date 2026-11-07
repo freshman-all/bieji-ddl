@@ -6,9 +6,12 @@ create extension if not exists pgcrypto;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   display_name text,
+  username text,
   mode text not null default 'detail',
+  design_theme text not null default 'warm',
   pet_data jsonb not null default '{}'::jsonb,
   keyword_rules jsonb not null default '[]'::jsonb,
+  reminder_settings jsonb not null default '{"enabled":true,"minutes":15}'::jsonb,
   ai_settings jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -41,6 +44,7 @@ create table if not exists public.tasks (
   urgency text not null default 'auto',
   status text not null default 'todo',
   reminder15 boolean not null default false,
+  reminder_minutes integer not null default 15,
   deleted boolean not null default false,
   raw_text_hash text not null default '',
   created_at timestamptz not null default now(),
@@ -90,7 +94,8 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id) values (new.id)
+  insert into public.profiles (id, display_name, username)
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', new.raw_user_meta_data->>'username'), new.raw_user_meta_data->>'username')
   on conflict (id) do nothing;
   return new;
 end;
@@ -112,8 +117,10 @@ as $$
     'profile', coalesce((
       select jsonb_build_object(
         'mode', p.mode,
+        'designTheme', p.design_theme,
         'pet', p.pet_data,
         'keywordRules', p.keyword_rules,
+        'reminderSettings', p.reminder_settings,
         'aiSettings', p.ai_settings
       ) from public.profiles p where p.id = auth.uid()
     ), '{}'::jsonb),
@@ -142,6 +149,7 @@ as $$
         'urgency', t.urgency,
         'status', t.status,
         'reminder15', t.reminder15,
+        'reminderMinutes', t.reminder_minutes,
         'deleted', t.deleted,
         'rawTextHash', t.raw_text_hash
       ) order by t.created_at)
@@ -171,8 +179,10 @@ begin
 
   update public.profiles
   set mode = coalesce(payload->'profile'->>'mode', mode),
+      design_theme = coalesce(payload->'profile'->>'designTheme', design_theme),
       pet_data = coalesce(payload->'profile'->'pet', pet_data),
       keyword_rules = coalesce(payload->'profile'->'keywordRules', keyword_rules),
+      reminder_settings = coalesce(payload->'profile'->'reminderSettings', reminder_settings),
       ai_settings = coalesce(payload->'profile'->'aiSettings', ai_settings),
       updated_at = now()
   where id = uid;
@@ -212,7 +222,7 @@ begin
   loop
     insert into public.tasks
       (user_id, id, theme_id, title, category, source, due_time, location, next_action,
-       requirements, urgency, status, reminder15, deleted, raw_text_hash, updated_at)
+       requirements, urgency, status, reminder15, reminder_minutes, deleted, raw_text_hash, updated_at)
     values
       (uid, item->>'id', coalesce(item->>'themeId', 'study'), coalesce(item->>'title', '未命名任务'),
        coalesce(item->>'category', '作业'), coalesce(item->>'source', ''),
@@ -220,6 +230,7 @@ begin
        coalesce(item->>'nextAction', ''), coalesce(item->>'requirements', ''),
        coalesce(item->>'urgency', 'auto'), coalesce(item->>'status', 'todo'),
        coalesce((item->>'reminder15')::boolean, false),
+       coalesce((item->>'reminderMinutes')::integer, 15),
        coalesce((item->>'deleted')::boolean, false), coalesce(item->>'rawTextHash', ''), now())
     on conflict (user_id, id) do update set
       theme_id = excluded.theme_id,
@@ -233,6 +244,7 @@ begin
       urgency = excluded.urgency,
       status = excluded.status,
       reminder15 = excluded.reminder15,
+      reminder_minutes = excluded.reminder_minutes,
       deleted = excluded.deleted,
       raw_text_hash = excluded.raw_text_hash,
       updated_at = now();

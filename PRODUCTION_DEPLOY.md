@@ -126,3 +126,24 @@ git push
 - 确认 tasks、themes、profiles 已开启 RLS
 - 不要把用户数据导出到公开仓库
 - 正式上线前补充隐私政策、用户协议和账号删除入口
+
+## 1.5 补充配置
+
+### 用户名登录
+
+为了让用户名注册可用，在 Supabase Authentication → Providers → Email 中关闭 Confirm email。用户名会映射成内部的登录邮箱，不向该地址发送邮件。
+
+如果需要密码找回，应增加真实邮箱或管理员重置流程。
+
+### AI 抠图
+
+部署抠图云函数：
+
+```bash
+supabase functions deploy remove-background
+supabase secrets set REMOVE_BG_API_KEY=你的_remove_bg_密钥
+```
+
+### 提醒权限
+
+网页只能请求浏览器通知权限，并在页面打开时触发通知；系统级闹钟需要原生 App。页面同时提供 `.ics` 日历提醒作为兜底。
