@@ -1,0 +1,4 @@
+project_id = "bieji-ddl"
+
+[functions.parse-notice]
+verify_jwt = true

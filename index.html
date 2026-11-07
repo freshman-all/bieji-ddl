@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#18352e">
+  <title>别急 DDL 正式版 - 主题化校园时间中枢</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+
+
+  <div class="auth-screen" id="authScreen" hidden>
+    <div class="auth-card">
+      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别急 DDL</strong><small>账号与云端同步</small></div></div>
+      <span class="eyebrow">Persona Timeline</span>
+      <h1>登录你的时间中枢</h1>
+      <p>登录后，主题、任务、桌宠和关键词会保存到云端，在不同设备上同步。</p>
+      <form id="authForm" class="auth-form">
+        <label class="field"><span>邮箱</span><input id="authEmail" type="email" autocomplete="email" required placeholder="name@example.com"></label>
+        <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="至少 6 位"></label>
+        <div class="auth-error" id="authError" hidden></div>
+        <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">登录</button><button class="button button-ghost" id="registerButton" type="button">注册账号</button></div>
+      </form>
+      <button class="auth-demo-button" id="authDemoButton" type="button">先使用本地演示版</button>
+      <small class="auth-note">注册后如开启邮箱验证，请先到邮箱完成确认，再回来登录。</small>
+    </div>
+  </div>
+
+  <div class="app-shell" id="appShell">
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="收起或展开左侧主题栏" aria-expanded="true">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+        <a class="brand" href="#" aria-label="别急 DDL 首页">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none"><path d="M16 4.5C9.65 4.5 4.5 9.65 4.5 16s5.15 11.5 11.5 11.5S27.5 22.35 27.5 16 22.35 4.5 16 4.5Z" stroke="currentColor" stroke-width="2.2"/><path d="M16 9v7.2l4.8 2.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </span>
+          <span class="brand-copy"><strong>别急 DDL</strong><small>正式版 · 账号与云端同步</small></span>
+        </a>
+        <span class="breadcrumb" id="breadcrumb">学习</span>
+      </div>
+
+      <div class="topbar-actions">
+        <div class="account-area" id="accountArea" hidden><span id="accountEmail"></span><button id="accountSignOutButton" type="button">退出</button></div>
+        <div class="mode-switch" id="modeSwitch" aria-label="界面版本切换">
+          <button class="mode-button is-active" type="button" data-mode="detail">精细版</button>
+          <button class="mode-button" type="button" data-mode="minimal">极简版</button>
+        </div>
+        <button class="button button-ghost mobile-filter-button" id="mobileFilterButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+          筛选
+        </button>
+        <button class="button button-ghost" id="openImportButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          整理通知
+        </button>
+        <button class="button button-primary" id="openAddButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"/></svg>
+          新增任务
+        </button>
+      </div>
+    </header>
+
+    <section class="minimal-screen" id="minimalScreen" hidden>
+      <section class="minimal-pane minimal-output-pane">
+        <div class="minimal-pane-head">
+          <div><span class="section-kicker">极简输出</span><h2>待办卡片</h2><p id="minimalRangeLabel">当前时间范围</p></div>
+          <span class="minimal-page-count" id="minimalPageCount">0 / 0</span>
+        </div>
+        <div class="minimal-deck" id="minimalDeck" aria-live="polite"></div>
+        <div class="minimal-empty" id="minimalEmpty">
+          <span>◌</span>
+          <strong>还没有整理后的待办</strong>
+          <small>在右侧或下方粘贴通知，生成第一张卡片。</small>
+        </div>
+        <div class="minimal-gesture-help">左右滑动翻页 · 上滑删除 · 长按修改 · 双击设置提前 15 分钟提醒</div>
+      </section>
+      <div class="minimal-divider" id="minimalDivider" role="separator" aria-orientation="vertical" aria-label="拖动调整输入区和输出区大小"><span></span></div>
+      <section class="minimal-pane minimal-input-pane">
+        <div class="minimal-pane-head">
+          <div><span class="section-kicker">极简输入</span><h2>粘贴或上传</h2><p>整理后自动删除废话并生成待办</p></div>
+        </div>
+        <textarea id="minimalInputText" class="minimal-input-text" placeholder="粘贴课程群通知、作业要求、考试安排或活动通知"></textarea>
+        <div class="minimal-input-actions">
+          <label class="button button-ghost minimal-upload-button">
+            <input id="minimalImageInput" type="file" accept="image/*" hidden>
+            上传图片
+          </label>
+          <button class="button button-ghost" id="minimalSampleButton" type="button">填入示例</button>
+        </div>
+        <div class="minimal-image-preview" id="minimalImagePreviewWrap" hidden><img id="minimalImagePreview" alt="待识别图片"><button id="removeMinimalImageButton" type="button">×</button></div>
+        <button class="button button-primary minimal-analyze-button" id="minimalAnalyzeButton" type="button">整理成待办</button>
+        <p class="minimal-input-note">识别会使用当前关键词规则；配置大模型后可识别图片内容。</p>
+      </section>
+    </section>
+
+    <div class="app-layout" id="appLayout">
+      <aside class="left-sidebar" id="leftSidebar" aria-label="主题侧栏">
+        <div class="sidebar-heading">
+          <span class="sidebar-label">我的主题</span>
+          <button class="collapse-inline" id="sidebarCollapseButton" type="button" aria-label="收起左侧栏">‹</button>
+        </div>
+
+        <nav class="theme-list" id="themeList" aria-label="主题列表"></nav>
+
+        <div class="sidebar-footer">
+          <button class="sidebar-action" id="petSettingsButton" type="button">
+            <span class="sidebar-action-icon">🐾</span>
+            <span class="sidebar-action-copy"><strong>桌宠设置</strong><small>图片、名字与显示</small></span>
+          </button>
+          <button class="sidebar-action" id="newThemeButton" type="button">
+            <span class="sidebar-action-icon">＋</span>
+            <span class="sidebar-action-copy"><strong>新建主题</strong><small>运动、游戏或自定义</small></span>
+          </button>
+          <button class="sidebar-action sidebar-action-primary" id="newTaskSideButton" type="button">
+            <span class="sidebar-action-icon">＋</span>
+            <span class="sidebar-action-copy"><strong>新建任务</strong><small>加入当前主题</small></span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-panel">
+        <section class="theme-hero" id="themeHero">
+          <div class="theme-copy">
+            <span class="eyebrow">主题工作台</span>
+            <h1 id="themeName">学习</h1>
+            <p id="themeDescription">课程、作业、考试和成长计划</p>
+            <div class="theme-stats" aria-label="当前主题概况">
+              <button class="theme-stat" type="button" data-overview="todo"><strong id="themeTodoCount">0</strong><span>待处理</span></button>
+              <button class="theme-stat" type="button" data-overview="urgent"><strong id="themeUrgentCount">0</strong><span>先做</span></button>
+              <button class="theme-stat" type="button" data-overview="done"><strong id="themeDoneCount">0</strong><span>历史完成</span></button>
+            </div>
+            <button class="theme-edit-button" id="editThemeButton" type="button">编辑主题与背景</button>
+          </div>
+          <div class="theme-visual" aria-hidden="true">
+            <span class="visual-ring ring-one"></span>
+            <span class="visual-ring ring-two"></span>
+            <span class="theme-symbol" id="themeIcon">📚</span>
+            <span class="visual-caption" id="themeVisualCaption">STUDY FLOW</span>
+          </div>
+        </section>
+
+        <section class="tasks-panel" aria-labelledby="listTitle">
+          <div class="panel-toolbar">
+            <div class="period-tabs" id="periodTabs" role="tablist" aria-label="时间范围">
+              <button class="period-tab is-active" data-period="today" type="button" role="tab" aria-selected="true">今天</button>
+              <button class="period-tab" data-period="tomorrow" type="button" role="tab" aria-selected="false">明天</button>
+              <button class="period-tab" data-period="week" type="button" role="tab" aria-selected="false">本周</button>
+              <button class="period-tab" data-period="month" type="button" role="tab" aria-selected="false">本月</button>
+              <button class="period-tab" data-period="history" type="button" role="tab" aria-selected="false">历史</button>
+            </div>
+
+            <label class="sort-control" for="sortSelect">
+              <span>排序</span>
+              <select id="sortSelect">
+                <option value="priority">按优先级</option>
+                <option value="deadline">按截止时间</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="list-heading">
+            <div>
+              <div class="heading-line">
+                <h2 id="listTitle">今天</h2>
+                <span class="count-chip" id="listCount">0 件</span>
+              </div>
+              <p id="listSubtitle">先完成红色事项，再处理其余安排。</p>
+            </div>
+            <div class="active-filter" id="activeFilterSummary" hidden></div>
+          </div>
+
+          <div class="event-list" id="eventList" aria-live="polite"></div>
+
+          <div class="empty-state" id="emptyState" hidden>
+            <div class="empty-illustration" aria-hidden="true">◌</div>
+            <h3 id="emptyTitle">这个时间范围还没有任务</h3>
+            <p id="emptyCopy">新建一件事，或粘贴一段通知自动整理。</p>
+            <button class="button button-primary" id="emptyAddButton" type="button">新建任务</button>
+          </div>
+
+          <section class="timeline-section" id="timelineSection" hidden>
+            <div class="timeline-heading">
+              <div>
+                <span class="section-kicker">当前时间范围</span>
+                <h3>时间任务轴</h3>
+              </div>
+              <p>按截止时间排列，横向查看这段时间的节奏。</p>
+            </div>
+            <div class="timeline-scroller">
+              <div class="timeline-track" id="timelineTrack"></div>
+            </div>
+          </section>
+        </section>
+      </main>
+
+      <aside class="right-sidebar" id="rightSidebar" aria-label="搜索与筛选">
+        <div class="filter-header">
+          <div>
+            <span class="sidebar-label">搜索与筛选</span>
+            <h2>找到那张卡片</h2>
+          </div>
+          <button class="icon-button filter-close" id="closeFilterButton" type="button" aria-label="关闭筛选">×</button>
+        </div>
+
+        <label class="search-box">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input id="searchInput" type="search" placeholder="搜索标题、地点、来源或要求">
+        </label>
+
+        <div class="filter-block">
+          <span class="filter-label">紧急程度</span>
+          <div class="urgency-chips" id="urgencyChips">
+            <button class="filter-chip is-active" type="button" data-urgency="">全部</button>
+            <button class="filter-chip" type="button" data-urgency="red"><i class="dot red"></i>先做</button>
+            <button class="filter-chip" type="button" data-urgency="yellow"><i class="dot yellow"></i>再做</button>
+            <button class="filter-chip" type="button" data-urgency="green"><i class="dot green"></i>可以等等</button>
+          </div>
+        </div>
+
+        <div class="filter-block filter-fields">
+          <label>
+            <span>任务类型</span>
+            <select id="categoryFilter"><option value="">全部类型</option></select>
+          </label>
+          <label>
+            <span>信息来源</span>
+            <select id="sourceFilter"><option value="">全部来源</option></select>
+          </label>
+          <label>
+            <span>地点</span>
+            <input id="locationFilter" type="search" placeholder="输入地点关键词">
+          </label>
+          <label>
+            <span>状态</span>
+            <select id="statusFilter">
+              <option value="">全部状态</option>
+              <option value="todo">待处理</option>
+              <option value="overdue">已逾期</option>
+              <option value="done">已完成</option>
+            </select>
+          </label>
+        </div>
+
+        <button class="button button-ghost button-wide" id="clearFiltersButton" type="button">清除全部筛选</button>
+        <div class="filter-note">时间范围由中间的“今天、明天、本周、本月、历史”控制。</div>
+      </aside>
+    </div>
+  </div>
+
+  <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
+
+  <button class="floating-add" id="floatingAddButton" type="button" aria-label="新建任务">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  </button>
+
+  <!-- 新建主题 -->
+  <div class="modal" id="themeModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="themeModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="themeModalTitle">
+      <header class="modal-header">
+        <div><span class="modal-kicker">创建空间</span><h2 id="themeModalTitle">新建一个主题</h2></div>
+        <button class="icon-button" type="button" data-close-modal="themeModal" aria-label="关闭">×</button>
+      </header>
+      <form id="themeForm" class="form-grid">
+        <label class="field field-full"><span>主题名称</span><input id="themeFormName" type="text" maxlength="18" placeholder="例如：摄影、社团、健身" required></label>
+        <label class="field"><span>主题图标</span><select id="themeFormIcon"><option>📚</option><option>🏀</option><option>🎮</option><option>📷</option><option>🎨</option><option>🌱</option><option>✦</option><option>🎵</option></select></label>
+        <label class="field"><span>主题颜色</span><select id="themeFormColor"><option value="green">森林绿</option><option value="orange">暖橙色</option><option value="blue">雾蓝色</option><option value="rose">珊瑚红</option><option value="brown">焦糖棕</option></select></label>
+        <label class="field field-full"><span>主题说明</span><input id="themeFormDescription" type="text" maxlength="50" placeholder="这个主题主要放什么"></label>
+        <label class="upload-compact field-full">
+          <input id="themeBackgroundInput" type="file" accept="image/*" hidden>
+          <span class="upload-icon">↑</span>
+          <span><strong>上传主题背景图</strong><small>图片会被压缩后保存在当前浏览器</small></span>
+        </label>
+        <div class="theme-image-preview field-full" id="themeImagePreviewWrap" hidden>
+          <img id="themeImagePreview" alt="主题背景预览">
+          <button class="button button-ghost" id="clearThemeBackgroundButton" type="button">移除背景</button>
+        </div>
+        <div class="form-actions"><button class="button button-ghost" type="button" data-close-modal="themeModal">取消</button><button class="button button-primary" type="submit">创建主题</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 新建任务 -->
+  <div class="modal" id="taskModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="taskModal"></div>
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+      <header class="modal-header">
+        <div><span class="modal-kicker">新建卡片</span><h2 id="taskModalTitle">添加一件事</h2></div>
+        <button class="icon-button" type="button" data-close-modal="taskModal" aria-label="关闭">×</button>
+      </header>
+      <form id="taskForm" class="form-grid">
+        <label class="field"><span>所属主题</span><select id="taskTheme"></select></label>
+        <label class="field"><span>信息来源</span><input id="taskSource" type="text" maxlength="40" placeholder="例如：课程群、教务系统"></label>
+        <label class="field field-full"><span>任务标题</span><input id="taskTitle" type="text" maxlength="80" placeholder="例如：提交物理实验报告" required></label>
+        <label class="field"><span>任务类型</span><select id="taskCategory"><option>上课</option><option selected>作业</option><option>打卡</option><option>表单</option><option>网课</option><option>考试</option><option>运动</option><option>游戏</option><option>生活</option><option value="custom">自定义类型</option></select></label>
+        <label class="field" id="customCategoryField" hidden><span>自定义类型名称</span><input id="taskCustomCategory" type="text" maxlength="20" placeholder="例如：社团、阅读、创作"></label>
+        <label class="field"><span>截止或开始时间</span><input id="taskDueTime" type="datetime-local"></label>
+        <label class="field"><span>紧急程度</span><select id="taskUrgency"><option value="auto">自动判断</option><option value="red">红色 · 先做</option><option value="yellow">黄色 · 再做</option><option value="green">绿色 · 可以等等</option></select></label>
+        <label class="field field-full"><span>地点</span><input id="taskLocation" type="text" maxlength="80" placeholder="例如：博学楼 A201、线上"></label>
+        <label class="field field-full"><span>下一步行动</span><input id="taskNextAction" type="text" maxlength="100" placeholder="例如：打开模板，先补齐结果分析"></label>
+        <label class="field field-full"><span>详细要求</span><textarea id="taskRequirements" rows="3" maxlength="300" placeholder="提交格式、考试范围、需要携带的东西等"></textarea></label>
+        <div class="form-actions"><button class="button button-ghost" type="button" data-close-modal="taskModal">取消</button><button class="button button-primary" type="submit">保存到时间线</button></div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 导入通知 -->
+  <div class="modal" id="importModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="importModal"></div>
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+      <header class="modal-header">
+        <div><span class="modal-kicker">从通知开始</span><h2 id="importModalTitle">把通知变成任务卡片</h2></div>
+        <button class="icon-button" type="button" data-close-modal="importModal" aria-label="关闭">×</button>
+      </header>
+
+      <div class="import-tools">
+        <span class="ai-status" id="aiStatus">本地关键词模式</span>
+        <button class="button button-ghost" id="aiSettingsButton" type="button">关键词与 AI 设置</button>
+      </div>
+      <label class="field"><span>加入哪个主题</span><select id="importTheme"></select></label>
+      <label class="upload-zone" id="uploadZone">
+        <input type="file" id="screenshotInput" accept="image/*" hidden>
+        <span class="upload-icon">↑</span>
+        <strong>上传课表或通知截图</strong>
+        <small>演示版会使用内置示例识别结果</small>
+      </label>
+      <div class="import-divider"><span>或直接粘贴文字</span></div>
+      <textarea id="noticeInput" class="notice-input" rows="6" placeholder="例如：明天晚上8点前提交小组展示PPT；后天9点打卡……"></textarea>
+      <div class="sample-row"><span>填入示例：</span><button class="sample-chip" type="button" data-sample="study">学习通知</button><button class="sample-chip" type="button" data-sample="sport">运动通知</button></div>
+
+      <button class="button button-primary button-wide" id="analyzeButton" type="button">AI 帮我整理</button>
+      <div class="analysis-state" id="analysisLoading" hidden><span class="spinner"></span><div><strong>正在整理通知</strong><small>提取时间、地点、来源、类型和截止要求</small></div></div>
+
+      <section class="preview-panel" id="previewPanel" hidden>
+        <div class="preview-heading"><div><span class="modal-kicker">识别结果</span><h3 id="previewTitle">识别到 0 件事</h3><p>可以修改标题和时间，确认后加入时间线。</p></div><span class="demo-badge">演示规则</span></div>
+        <div class="preview-list" id="previewList"></div>
+        <button class="button button-primary button-wide" id="confirmImportButton" type="button">确认加入当前主题</button>
+      </section>
+      <div class="modal-footer-note">当前为本地演示规则，不调用真实 AI。正式版本可替换为模型接口。</div>
+    </div>
+  </div>
+
+  <!-- 事项详情 -->
+  <div class="modal" id="detailModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="detailModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <header class="modal-header"><div><span class="modal-kicker" id="detailCategory">事项详情</span><h2 id="detailTitle">事项名称</h2></div><button class="icon-button" type="button" data-close-modal="detailModal" aria-label="关闭">×</button></header>
+      <div class="detail-priority" id="detailPriority"></div>
+      <div class="detail-meta-grid">
+        <button class="detail-block editable-detail" type="button" data-edit-field="time"><span>时间 · 点击修改</span><strong id="detailTime">未设置</strong></button>
+        <button class="detail-block editable-detail" type="button" data-edit-field="location"><span>地点 · 点击修改</span><strong id="detailLocation">未设置</strong></button>
+        <button class="detail-block editable-detail" type="button" data-edit-field="source"><span>信息来源 · 点击修改</span><strong id="detailSource">未设置</strong></button>
+        <button class="detail-block editable-detail" type="button" data-edit-field="category"><span>任务类型 · 点击修改</span><strong id="detailType">未设置</strong></button>
+      </div>
+      <div class="detail-block detail-block-wide"><span>下一步行动</span><p id="detailNextAction">未填写</p></div>
+      <div class="detail-block detail-block-wide"><span>详细要求</span><p id="detailRequirements">未填写</p></div>
+      <section class="detail-edit-panel" id="detailEditPanel" hidden>
+        <div class="detail-edit-heading"><strong>修改卡片关键词</strong><span>保存后会立即更新排序和颜色</span></div>
+        <form id="detailEditForm" class="form-grid">
+          <label class="field field-full"><span>标题</span><input id="editTaskTitle" type="text" maxlength="80" required></label>
+          <label class="field"><span>任务类型</span><input id="editTaskCategory" type="text" maxlength="30"></label>
+          <label class="field"><span>信息来源</span><input id="editTaskSource" type="text" maxlength="40"></label>
+          <label class="field"><span>时间</span><input id="editTaskDueTime" type="datetime-local"></label>
+          <label class="field"><span>紧急程度</span><select id="editTaskUrgency"><option value="auto">自动判断</option><option value="red">红色 · 先做</option><option value="yellow">黄色 · 再做</option><option value="green">绿色 · 可以等等</option></select></label>
+          <label class="field field-full"><span>地点</span><input id="editTaskLocation" type="text" maxlength="80"></label>
+          <label class="field field-full"><span>下一步行动</span><input id="editTaskNextAction" type="text" maxlength="100"></label>
+          <label class="field field-full"><span>详细要求</span><textarea id="editTaskRequirements" rows="3" maxlength="300"></textarea></label>
+          <div class="form-actions"><button class="button button-ghost" id="detailEditCancelButton" type="button">取消</button><button class="button button-primary" type="submit">保存修改</button></div>
+        </form>
+      </section>
+      <div class="detail-actions"><button class="button button-primary" id="detailReminderButton" type="button">设为日历提醒</button><button class="button button-ghost" id="detailEditButton" type="button">修改关键词</button><button class="button button-ghost" id="detailCompleteButton" type="button">标记完成</button></div>
+    </div>
+  </div>
+
+
+  <div class="modal" id="aiSettingsModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="aiSettingsModal"></div>
+    <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="aiSettingsTitle">
+      <header class="modal-header"><div><span class="modal-kicker">识别规则</span><h2 id="aiSettingsTitle">关键词与大模型设置</h2></div><button class="icon-button" type="button" data-close-modal="aiSettingsModal" aria-label="关闭">×</button></header>
+      <form id="aiSettingsForm" class="form-grid">
+        <label class="field field-full"><span>OpenAI 兼容接口地址</span><input id="aiBaseUrl" type="url" placeholder="例如：https://api.example.com/v1"></label>
+        <label class="field"><span>模型名称</span><input id="aiModel" type="text" placeholder="例如：deepseek-chat"></label>
+        <label class="field"><span>API Key</span><input id="aiApiKey" type="password" placeholder="只保存在当前浏览器"></label>
+        <div class="field field-full keyword-editor-head"><span>任务类型关键词</span><small>每行格式：类型 | 关键词1, 关键词2</small></div>
+        <div class="keyword-rule-list field-full" id="keywordRuleList"></div>
+        <button class="button button-ghost field-full" id="addKeywordRuleButton" type="button">＋ 添加一组关键词</button>
+        <label class="field field-full"><span>紧急词</span><input id="urgentKeywords" type="text" placeholder="紧急, 今天, 马上, 立刻"></label>
+        <label class="field field-full"><span>忽略词</span><input id="ignoredKeywords" type="text" placeholder="广告, 自愿, 可选"></label>
+        <div class="ai-test-row field-full"><button class="button button-ghost" id="testAIConnectionButton" type="button">测试接口</button><span id="aiTestStatus">尚未测试</span></div>
+        <div class="form-actions"><button class="button button-ghost" type="button" data-close-modal="aiSettingsModal">取消</button><button class="button button-primary" type="submit">保存设置</button></div>
+      </form>
+      <div class="modal-footer-note">浏览器直连模型接口可能受跨域限制。正式上线建议通过服务端代理保存密钥。</div>
+    </div>
+  </div>
+
+  <div class="modal" id="overviewModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="overviewModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="overviewTitle">
+      <header class="modal-header"><div><span class="modal-kicker">主题总览</span><h2 id="overviewTitle">待处理任务</h2></div><button class="icon-button" type="button" data-close-modal="overviewModal" aria-label="关闭">×</button></header>
+      <div class="overview-card" id="overviewCard">
+        <div class="overview-brand"><span id="overviewThemeIcon">📚</span><div><strong id="overviewThemeName">学习</strong><small>别急 DDL · 今日总览</small></div></div>
+        <div class="overview-stats"><div><strong id="overviewCount">0</strong><span id="overviewLabel">待处理</span></div><div><strong id="overviewUrgent">0</strong><span>先做</span></div></div>
+        <div class="overview-rows" id="overviewRows"></div>
+      </div>
+      <div class="detail-actions"><button class="button button-primary" id="downloadOverviewButton" type="button">保存总结图片</button><button class="button button-ghost" type="button" data-close-modal="overviewModal">关闭</button></div>
+    </div>
+  </div>
+
+
+  <div class="modal" id="petSettingsModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-modal="petSettingsModal"></div>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="petSettingsTitle">
+      <header class="modal-header"><div><span class="modal-kicker">网页桌宠</span><h2 id="petSettingsTitle">桌宠设置</h2></div><button class="icon-button" type="button" data-close-modal="petSettingsModal" aria-label="关闭">×</button></header>
+      <form id="petSettingsForm" class="form-grid">
+        <label class="switch-row field-full"><span><strong>显示桌宠</strong><small>显示在页面右下角</small></span><input id="petEnabled" type="checkbox" checked></label>
+        <label class="field"><span>桌宠名字</span><input id="petName" type="text" maxlength="16" placeholder="小别"></label>
+        <label class="field"><span>默认形象</span><select id="petEmoji"><option>🐱</option><option>🐶</option><option>🐰</option><option>🐼</option><option>🐤</option><option>✦</option></select></label>
+        <label class="upload-compact field-full"><input id="petImageInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>上传自定义桌宠图片</strong><small>建议使用透明背景 PNG</small></span></label>
+        <div class="pet-preview-row field-full"><div class="pet-preview" id="petPreview"><span id="petPreviewEmoji">🐱</span><img id="petPreviewImage" alt="桌宠预览" hidden></div><button class="button button-ghost" id="clearPetImageButton" type="button">恢复默认形象</button></div>
+        <label class="field field-full"><span>抠图强度</span><input id="petBgTolerance" type="range" min="10" max="80" value="38"></label>
+        <button class="button button-ghost field-full" id="removePetBackgroundButton" type="button">智能抠图（边缘识色）</button>
+        <div class="form-actions"><button class="button button-primary" type="submit">保存桌宠设置</button></div>
+      </form>
+      <div class="modal-footer-note">网页刷新或关闭后桌宠会消失。浏览器网页无法在页面外悬浮于电脑桌面。</div>
+    </div>
+  </div>
+
+  <div class="desktop-pet" id="desktopPet" role="button" tabindex="0" aria-label="桌宠，左键打开页面，右键设置">
+    <div class="pet-schedule" id="petSchedule"></div>
+    <img id="petImage" alt="自定义桌宠" hidden>
+    <span id="petFallback" class="pet-emoji">🐱</span>
+    <span class="pet-name" id="petNameLabel">小别</span>
+  </div>
+  <div class="pet-context-menu" id="petContextMenu" hidden>
+    <button type="button" id="petOpenMainButton">打开主页面</button>
+    <button type="button" id="petSettingsMenuButton">桌宠设置</button>
+    <button type="button" id="petCloseButton">关闭桌宠</button>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="cloud-config.js"></script>
+  <script src="cloud.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
