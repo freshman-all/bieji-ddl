@@ -5,6 +5,7 @@
   const SESSION_KEY = "bieji-ddl-supabase-session-v1";
   const LOCAL_USERS_KEY = "bieji-ddl-local-users-v1";
   const LOCAL_SESSION_KEY = "bieji-ddl-local-session-v1";
+  const LAST_USER_KEY = "stop-talking-last-user-v1";
   const enabled = Boolean(cfg.enableCloud && cfg.supabaseUrl && cfg.supabaseAnonKey);
   const baseUrl = String(cfg.supabaseUrl || "").replace(/\/$/, "");
   const authListeners = [];
@@ -16,6 +17,8 @@
   let lastSnapshotSignature = "";
   let authUiBound = false;
   let offlineMode = !navigator.onLine;
+  let authMode = "login";
+  let updateAuthModeUi = () => {};
 
   function readLocalSession() {
     try { return JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || "null"); }
@@ -50,9 +53,9 @@
     return new Uint8Array(hex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []);
   }
 
-  async function derivePassword(password, saltHex) {
+  async function derivePassword(password, saltHex, iterations = 210000) {
     const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
-    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 210000, hash: "SHA-256" }, keyMaterial, 256);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: hexToBytes(saltHex), iterations, hash: "SHA-256" }, keyMaterial, 256);
     return bytesToHex(new Uint8Array(bits));
   }
 
@@ -86,7 +89,7 @@
     if (users.some((user) => user.username.toLowerCase() === clean.toLowerCase())) throw new Error("这个用户名已经存在");
     const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
     const hash = await derivePassword(password, salt);
-    users.push({ username: clean, salt, hash, avatar, createdAt: new Date().toISOString() });
+    users.push({ username: clean, salt, hash, passwordIterations: 210000, avatar, createdAt: new Date().toISOString() });
     saveLocalUsers(users);
     return { username: clean, avatar };
   }
@@ -94,9 +97,9 @@
   async function verifyLocalAccount(username, password) {
     const clean = String(username || "").trim();
     const user = localUsers().find((item) => item.username.toLowerCase() === clean.toLowerCase());
-    if (!user) throw new Error("用户名或密码不正确");
-    const hash = await derivePassword(password, user.salt);
-    if (hash !== user.hash) throw new Error("用户名或密码不正确");
+    if (!user) throw new Error("这个用户名还没有注册，请先创建账号");
+    const hash = await derivePassword(password, user.salt, Number(user.passwordIterations) || 210000);
+    if (hash !== user.hash) throw new Error("密码不正确，请重新输入");
     return { username: user.username, avatar: user.avatar || "" };
   }
 
@@ -128,7 +131,7 @@
 
   function validatePassword(password) {
     const value = String(password || "");
-    if (value.length < 12) throw new Error("密码至少需要 12 位");
+    if (value.length < 8) throw new Error("密码至少需要 8 位");
     if (!/[a-z]/.test(value)) throw new Error("密码需要包含小写字母");
     if (!/[A-Z]/.test(value)) throw new Error("密码需要包含大写字母");
     if (!/[0-9]/.test(value)) throw new Error("密码需要包含数字");
@@ -261,6 +264,10 @@
     if (shell) shell.hidden = show;
     document.body.classList.toggle("auth-locked", show);
     if (show) {
+      const password = document.getElementById("authPassword");
+      const confirm = document.getElementById("authPasswordConfirm");
+      if (password) password.value = "";
+      if (confirm) confirm.value = "";
       document.querySelectorAll(".modal.is-open").forEach((modal) => {
         modal.classList.remove("is-open");
         modal.setAttribute("aria-hidden", "true");
@@ -296,6 +303,7 @@
   async function signIn(email, password) {
     if (!enabled) {
       const account = await verifyLocalAccount(email, password);
+      localStorage.setItem(LAST_USER_KEY, account.username);
       saveLocalSession(account);
       showAuth(false);
       showAccount(localUserObject(account));
@@ -320,6 +328,7 @@
     validatePassword(password);
     if (!enabled) {
       const account = await createLocalAccount(cleanUsername, password, authAvatarDraft);
+      localStorage.setItem(LAST_USER_KEY, account.username);
       saveLocalSession(account);
       showAuth(false);
       showAccount(localUserObject(account));
@@ -343,10 +352,13 @@
 
   async function signOut() {
     if (!enabled || localSession) {
+      if (localSession?.username) localStorage.setItem(LAST_USER_KEY, localSession.username);
       saveLocalSession(null);
       stopPolling();
       showAccount(null);
       showAuth(true);
+      authMode = "login";
+      updateAuthModeUi();
       emitAuth(null);
       return;
     }
@@ -395,32 +407,74 @@
     const emailInput = document.getElementById("authEmail");
     const passwordInput = document.getElementById("authPassword");
     const confirmInput = document.getElementById("authPasswordConfirm");
+    const confirmField = document.getElementById("authConfirmField");
+    const avatarField = document.getElementById("authAvatarField");
+    const modeSwitch = document.getElementById("authModeSwitch");
+    const loginButton = document.getElementById("loginButton");
     const registerButton = document.getElementById("registerButton");
     const demoButton = document.getElementById("authDemoButton");
     const signOutButton = document.getElementById("accountSignOutButton");
     const avatarInput = document.getElementById("authAvatarInput");
     const avatarPreview = document.getElementById("authAvatarPreview");
+    const authNote = document.getElementById("authNote");
+    const savedUsername = localStorage.getItem(LAST_USER_KEY) || "";
+    if (emailInput && !emailInput.value && savedUsername) emailInput.value = savedUsername;
+    const authScreen = document.getElementById("authScreen");
+    if (authScreen) authScreen.dataset.ready = "true";
+
+    updateAuthModeUi = () => {
+      const registering = authMode === "register";
+      if (confirmField) confirmField.hidden = !registering;
+      if (avatarField) avatarField.hidden = !registering;
+      if (loginButton) loginButton.hidden = registering;
+      if (registerButton) registerButton.hidden = !registering;
+      if (confirmInput) confirmInput.required = registering;
+      if (passwordInput) passwordInput.autocomplete = registering ? "new-password" : "current-password";
+      if (authNote) authNote.textContent = registering
+        ? "创建账号：密码至少 8 位，并包含大小写字母、数字和符号。账号与数据保存在本浏览器。"
+        : "登录已有账号。密码只在本机校验，不会明文保存。";
+      modeSwitch?.querySelectorAll("[data-auth-mode]").forEach((button) => {
+        const active = button.dataset.authMode === authMode;
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      });
+      setAuthError("");
+    };
+    modeSwitch?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-auth-mode]");
+      if (!button) return;
+      authMode = button.dataset.authMode === "register" ? "register" : "login";
+      updateAuthModeUi();
+      window.setTimeout(() => passwordInput?.focus(), 40);
+    });
+    updateAuthModeUi();
+
+    const performRegister = async () => {
+      if (!emailInput.value.trim() || !passwordInput.value) throw new Error("请先填写用户名和密码");
+      if (confirmInput && confirmInput.value !== passwordInput.value) throw new Error("两次输入的密码不一致");
+      const result = await signUp(emailInput.value.trim(), passwordInput.value);
+      if (result.needsConfirmation) setAuthError("注册成功，请到邮箱完成验证后再登录", true);
+      else setAuthError("账号已创建，正在进入别念了", true);
+    };
     if (form) {
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         setAuthError("");
         setAuthBusy(true);
-        try { await signIn(emailInput.value.trim(), passwordInput.value); }
+        try {
+          if (authMode === "register") await performRegister();
+          else await signIn(emailInput.value.trim(), passwordInput.value);
+        }
         catch (error) { setAuthError(friendlyError(error)); }
         finally { setAuthBusy(false); }
       });
     }
     if (registerButton) {
       registerButton.addEventListener("click", async () => {
-        if (!emailInput.value.trim() || !passwordInput.value) { setAuthError("请先填写用户名和密码"); return; }
-        if (confirmInput && confirmInput.value !== passwordInput.value) { setAuthError("两次输入的密码不一致"); return; }
         setAuthError("");
         setAuthBusy(true);
-        try {
-          const result = await signUp(emailInput.value.trim(), passwordInput.value);
-          if (result.needsConfirmation) setAuthError("注册成功，请到邮箱完成验证后再登录", true);
-          else setAuthError("注册成功，正在进入你的时间中枢", true);
-        } catch (error) { setAuthError(friendlyError(error)); }
+        try { await performRegister(); }
+        catch (error) { setAuthError(friendlyError(error)); }
         finally { setAuthBusy(false); }
       });
     }

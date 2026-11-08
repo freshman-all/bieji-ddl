@@ -3,34 +3,46 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#18352e">
-  <title>别急 DDL 1.7 - 账号头像、原创桌宠与三套主题</title>
+  <meta name="theme-color" content="#0b0b0d">
+  <meta name="description" content="别念了 StopTalking，把纷乱通知变成清楚的下一步。">
+  <title>别念了 (StopTalking) 1.8 - 把纷乱通知变成清楚行动</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fustat:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Fustat:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet"></noscript>
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-design="apex">
   <video class="site-background-video" autoplay loop muted playsinline aria-hidden="true">
     <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260309_042944_4a2205b7-b061-490a-852b-92d9e9955ce9.mp4" type="video/mp4">
   </video>
+  <video class="hero-design-video" id="heroDesignVideo" autoplay muted playsinline preload="auto" aria-hidden="true">
+    <source src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260329_050842_be71947f-f16e-4a14-810c-06e83d23ddb5.mp4" type="video/mp4">
+  </video>
   <div class="site-video-shade" aria-hidden="true"></div>
   <div class="ambient ambient-one" aria-hidden="true"></div>
   <div class="ambient ambient-two" aria-hidden="true"></div>
 
 
-  <div class="auth-screen" id="authScreen" aria-hidden="false">
+  <div class="auth-screen" id="authScreen" aria-hidden="false" data-ready="false">
     <div class="auth-card">
-      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别急 DDL</strong><small>1.7 账号头像与离线时间中枢</small></div></div>
-      <span class="eyebrow">Persona Timeline · 1.7</span>
-      <h1>登录你的时间中枢</h1>
-      <p>先注册或登录，再开始整理课程、作业和截止时间。头像、主题、任务与桌宠设置只属于当前账号。</p>
+      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别念了</strong><small>StopTalking · 1.8</small></div></div>
+      <span class="eyebrow">LESS NOISE. MORE DONE.</span>
+      <h1>把纷乱通知，变成清楚的下一步。</h1>
+      <p>登录后，课程、作业、提醒和专注计划都只属于你。安静一点，事情反而更清楚。</p>
       <form id="authForm" class="auth-form">
+        <div class="auth-mode-switch field-full" id="authModeSwitch" role="tablist" aria-label="登录或注册">
+          <button class="is-active" type="button" data-auth-mode="login" role="tab" aria-selected="true">登录</button>
+          <button type="button" data-auth-mode="register" role="tab" aria-selected="false">创建账号</button>
+        </div>
         <label class="field"><span>用户名</span><input id="authEmail" type="text" autocomplete="username" required placeholder="3-24 位字母、数字或下划线"></label>
-        <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="12" required placeholder="至少 12 位，含大小写字母、数字和符号"></label>
-        <label class="field field-full"><span>确认密码（注册时填写）</span><input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="12" placeholder="注册时再输入一次相同密码"></label>
-        <label class="upload-compact field-full auth-avatar-upload"><input id="authAvatarInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>上传个人头像</strong><small>可选，注册后保存在账号中</small></span><img id="authAvatarPreview" alt="头像预览" hidden></label>
+        <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="至少 8 位，含大小写字母、数字和符号"></label>
+        <label class="field field-full" id="authConfirmField" hidden><span>确认密码</span><input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="8" placeholder="再输入一次相同密码"></label>
+        <label class="upload-compact field-full auth-avatar-upload" id="authAvatarField" hidden><input id="authAvatarInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>上传个人头像</strong><small>可选，注册后保存在账号中</small></span><img id="authAvatarPreview" alt="头像预览" hidden></label>
         <div class="auth-error" id="authError" hidden></div>
-        <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">登录</button><button class="button button-ghost" id="registerButton" type="button">注册新账号</button></div>
+        <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">进入别念了</button><button class="button button-primary" id="registerButton" type="button" hidden>创建账号</button></div>
       </form>
-      <small class="auth-note">密码至少 12 位，并包含大小写字母、数字和符号。当前为本地账号模式，账号和离线数据保存在这个浏览器中。</small>
+      <small class="auth-note" id="authNote">密码至少 8 位，并包含大小写字母、数字和符号。当前账号和离线数据保存在这个浏览器中。</small>
     </div>
   </div>
 
@@ -40,11 +52,11 @@
         <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="收起或展开左侧主题栏" aria-expanded="true">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
         </button>
-        <a class="brand" href="#" aria-label="别急 DDL 首页">
+        <a class="brand" href="#" aria-label="别念了 StopTalking 首页">
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none"><path d="M16 4.5C9.65 4.5 4.5 9.65 4.5 16s5.15 11.5 11.5 11.5S27.5 22.35 27.5 16 22.35 4.5 16 4.5Z" stroke="currentColor" stroke-width="2.2"/><path d="M16 9v7.2l4.8 2.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </span>
-          <span class="brand-copy"><strong>别急 DDL</strong><small>1.7 正式版 · 账号头像、原创桌宠与三套主题</small></span>
+          <span class="brand-copy"><strong>别念了 <em>StopTalking</em></strong><small>1.8 · LESS NOISE. MORE DONE.</small></span>
         </a>
         <span class="breadcrumb" id="breadcrumb">学习</span>
       </div>
@@ -84,7 +96,7 @@
           <strong>还没有整理后的待办</strong>
           <small>在右侧或下方粘贴通知，生成第一张卡片。</small>
         </div>
-        <div class="minimal-gesture-help">左右滑动翻页 · 上滑删除 · 长按修改 · 双击设置提前 15 分钟提醒</div>
+        <div class="minimal-gesture-help">左右滑动翻页 · 点删除按钮移除 · 长按修改 · 双击设置提醒</div>
       </section>
       <div class="minimal-divider" id="minimalDivider" role="separator" aria-orientation="vertical" aria-label="拖动调整输入区和输出区大小"><span></span></div>
       <section class="minimal-pane minimal-input-pane">
@@ -321,6 +333,7 @@
         <label class="field"><span>提醒时间</span><select id="taskReminderMinutes"><option value="15">提前 15 分钟</option><option value="5">提前 5 分钟</option><option value="30">提前 30 分钟</option><option value="60">提前 1 小时</option><option value="0">不提醒</option></select></label>
         <label class="field field-full"><span>地点</span><input id="taskLocation" type="text" maxlength="80" placeholder="例如：博学楼 A201、线上"></label>
         <label class="field field-full"><span>下一步行动</span><input id="taskNextAction" type="text" maxlength="100" placeholder="例如：打开模板，先补齐结果分析"></label>
+        <label class="field field-full"><span>关键词</span><input id="taskKeywords" type="text" maxlength="160" placeholder="用逗号分隔，例如：PPT, 小组, 周五截止"></label>
         <label class="field field-full"><span>详细要求</span><textarea id="taskRequirements" rows="3" maxlength="300" placeholder="提交格式、考试范围、需要携带的东西等"></textarea></label>
         <div class="form-actions"><button class="button button-ghost" type="button" data-close-modal="taskModal">取消</button><button class="button button-primary" type="submit">保存到时间线</button></div>
       </form>
@@ -355,7 +368,7 @@
       <div class="analysis-state" id="analysisLoading" hidden><span class="spinner"></span><div><strong>正在整理通知</strong><small>提取时间、地点、来源、类型和截止要求</small></div></div>
 
       <section class="preview-panel" id="previewPanel" hidden>
-        <div class="preview-heading"><div><span class="modal-kicker">识别结果</span><h3 id="previewTitle">识别到 0 件事</h3><p>可以修改标题和时间，确认后加入时间线。</p></div><span class="demo-badge">演示规则</span></div>
+        <div class="preview-heading"><div><span class="modal-kicker">识别结果</span><h3 id="previewTitle">识别到 0 件事</h3><p>关键词、类型和时间都可以修改，确认后才会写入卡片。</p></div><span class="demo-badge">等待确认</span></div>
         <div class="preview-list" id="previewList"></div>
         <button class="button button-primary button-wide" id="confirmImportButton" type="button">确认加入当前主题</button>
       </section>
@@ -376,6 +389,7 @@
         <button class="detail-block editable-detail" type="button" data-edit-field="category"><span>任务类型 · 点击修改</span><strong id="detailType">未设置</strong></button>
       </div>
       <div class="detail-block detail-block-wide"><span>下一步行动</span><p id="detailNextAction">未填写</p></div>
+      <div class="detail-block detail-block-wide"><span>卡片关键词</span><p id="detailKeywords">未填写</p></div>
       <div class="detail-block detail-block-wide"><span>详细要求</span><p id="detailRequirements">未填写</p></div>
       <section class="detail-edit-panel" id="detailEditPanel" hidden>
         <div class="detail-edit-heading"><strong>修改卡片关键词</strong><span>保存后会立即更新排序和颜色</span></div>
@@ -388,6 +402,7 @@
           <label class="field"><span>提醒时间</span><select id="editTaskReminderMinutes"><option value="15">提前 15 分钟</option><option value="5">提前 5 分钟</option><option value="30">提前 30 分钟</option><option value="60">提前 1 小时</option><option value="0">不提醒</option></select></label>
           <label class="field field-full"><span>地点</span><input id="editTaskLocation" type="text" maxlength="80"></label>
           <label class="field field-full"><span>下一步行动</span><input id="editTaskNextAction" type="text" maxlength="100"></label>
+          <label class="field field-full"><span>关键词</span><input id="editTaskKeywords" type="text" maxlength="160" placeholder="用逗号分隔"></label>
           <label class="field field-full"><span>详细要求</span><textarea id="editTaskRequirements" rows="3" maxlength="300"></textarea></label>
           <div class="form-actions"><button class="button button-ghost" id="detailEditCancelButton" type="button">取消</button><button class="button button-primary" type="submit">保存修改</button></div>
         </form>
@@ -422,7 +437,7 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="overviewTitle">
       <header class="modal-header"><div><span class="modal-kicker">主题总览</span><h2 id="overviewTitle">待处理任务</h2></div><button class="icon-button" type="button" data-close-modal="overviewModal" aria-label="关闭">×</button></header>
       <div class="overview-card" id="overviewCard">
-        <div class="overview-brand"><span id="overviewThemeIcon">📚</span><div><strong id="overviewThemeName">学习</strong><small>别急 DDL · 今日总览</small></div></div>
+        <div class="overview-brand"><span id="overviewThemeIcon">📚</span><div><strong id="overviewThemeName">学习</strong><small>别念了 StopTalking · 今日总览</small></div></div>
         <div class="overview-stats"><div><strong id="overviewCount">0</strong><span id="overviewLabel">待处理</span></div><div><strong id="overviewUrgent">0</strong><span>先做</span></div></div>
         <div class="overview-rows" id="overviewRows"></div>
       </div>
@@ -508,7 +523,8 @@
       <header class="modal-header"><div><span class="modal-kicker">原创专注航线</span><h2 id="focusTitle">安排一段不被打断的时间</h2></div><button class="icon-button" type="button" data-close-modal="focusModal" aria-label="关闭">×</button></header>
       <div class="focus-setup" id="focusSetup">
         <label class="field field-full"><span>这段专注要做什么</span><input id="focusTaskTitle" type="text" maxlength="60" placeholder="例如：完成高数第三章练习"></label>
-        <label class="field"><span>专注时长</span><select id="focusDuration"><option value="15">15 分钟</option><option value="25" selected>25 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option></select></label>
+        <label class="field"><span>专注时长</span><select id="focusDuration"><option value="15">15 分钟</option><option value="25" selected>25 分钟</option><option value="45">45 分钟</option><option value="60">60 分钟</option><option value="custom">自定义时长</option></select></label>
+        <label class="field focus-custom-field" id="focusCustomField" hidden><span>自定义分钟数</span><input id="focusCustomMinutes" type="number" min="1" max="240" step="1" value="30" inputmode="numeric"></label>
         <label class="field"><span>计划开始时间</span><input id="focusStartTime" type="datetime-local"></label>
         <div class="focus-preset-row field-full"><span>航线氛围</span><button class="focus-preset is-active" type="button" data-focus-sky="day">晴空</button><button class="focus-preset" type="button" data-focus-sky="sunset">落日</button><button class="focus-preset" type="button" data-focus-sky="night">夜航</button></div>
         <div class="form-actions"><button class="button button-ghost" id="focusScheduleButton" type="button">加入时间线</button><button class="button button-primary" id="focusStartButton" type="button">开始专注</button></div>
@@ -531,9 +547,11 @@
     <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="designTitle">
       <header class="modal-header"><div><span class="modal-kicker">视觉风格</span><h2 id="designTitle">选择网站外观</h2></div><button class="icon-button" type="button" data-close-modal="designModal" aria-label="关闭">×</button></header>
       <div class="design-grid" id="designGrid">
-        <button class="design-option is-active" type="button" data-design="apex"><span class="design-swatch night"><i></i><i></i><i></i></span><strong>深色航站</strong><small>1.7 深色 SaaS 与绿色专注面板</small></button>
+        <button class="design-option is-active" type="button" data-design="apex"><span class="design-swatch night"><i></i><i></i><i></i></span><strong>深色航站</strong><small>深色 SaaS 与绿色专注面板</small></button>
         <button class="design-option" type="button" data-design="pixel"><span class="design-swatch warm"><i></i><i></i><i></i></span><strong>像素田园</strong><small>原创像素农场灵感、方块边框与手账质感</small></button>
         <button class="design-option" type="button" data-design="orbit"><span class="design-swatch editorial"><i></i><i></i><i></i></span><strong>轨道画廊</strong><small>衬线大字、滚动视差与环形轨道画廊</small></button>
+        <button class="design-option" type="button" data-design="hero"><span class="design-swatch hero-film"><i></i><i></i><i></i></span><strong>光影宣言</strong><small>全屏影片、玻璃导航与大字中心舞台</small></button>
+        <button class="design-option" type="button" data-design="classic"><span class="design-swatch classic-paper"><i></i><i></i><i></i></span><strong>初代暖纸</strong><small>回到 1.2 版的温暖纸张与绿色手账感</small></button>
       </div>
     </div>
   </div>

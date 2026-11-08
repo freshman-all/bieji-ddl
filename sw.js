@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "bieji-ddl-v17-2026-11-08";
+const CACHE_NAME = "stop-talking-v18-2026-11-08";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -21,7 +21,7 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("bieji-ddl-") && key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.filter((key) => (key.startsWith("bieji-ddl-") || key.startsWith("stop-talking-")) && key !== CACHE_NAME).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });

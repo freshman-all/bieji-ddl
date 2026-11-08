@@ -89,6 +89,8 @@ const state = {
 let focusTimer = null;
 let notificationTimers = new Map();
 let petClickTimer = null;
+let heroVideoFadeFrame = null;
+let heroVideoFadingOut = false;
 
 let cloudReady = false;
 let cloudHydrating = false;
@@ -380,6 +382,7 @@ function normalizeCloudTask(task) {
     location: task.location || "",
     nextAction: task.nextAction || task.next_action || "",
     requirements: task.requirements || "",
+    keywords: Array.isArray(task.keywords) ? task.keywords : String(task.keywords || "").split(/[,，]/).map((item) => item.trim()).filter(Boolean),
     urgency: task.urgency || "auto",
     status: task.status || "todo",
     reminder15: Boolean(task.reminder15 ?? task.reminder_15 ?? false),
@@ -404,7 +407,7 @@ function applyCloudSnapshot(snapshot) {
   state.mode = profile.mode === "minimal" ? "minimal" : "detail";
   state.pet = { ...DEFAULT_PET, ...(profile.pet || {}) };
   state.profileAvatar = profile.avatar || window.BiejiCloud?.getAvatar?.() || state.profileAvatar || "";
-  const profileDesign = ["apex", "pixel", "orbit"].includes(profile.designTheme) ? profile.designTheme : "";
+  const profileDesign = ["apex", "pixel", "orbit", "hero", "classic"].includes(profile.designTheme) ? profile.designTheme : "";
   state.designTheme = profileDesign || storageGet(DESIGN_KEY) || "apex";
   state.reminderSettings = { enabled: true, minutes: 15, ...(profile.reminderSettings || {}) };
   state.keywordRules = Array.isArray(profile.keywordRules) ? profile.keywordRules : DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
@@ -471,7 +474,7 @@ function exportBackup() {
   const blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), ...payload }, null, 2)], { type: "application/json" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = `bieji-ddl-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `stop-talking-backup-${new Date().toISOString().slice(0, 10)}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -707,6 +710,8 @@ function eventCardMarkup(event) {
   const source = event.source || "未标注来源";
   const locationMarkup = event.location ? `<span>⌖ ${escapeHTML(event.location)}</span>` : "";
   const nextMarkup = event.nextAction ? `<p class="next-action"><span>下一步</span>${escapeHTML(event.nextAction)}</p>` : "";
+  const keywords = normalizeKeywordList(event.keywords);
+  const keywordMarkup = keywords.length ? `<div class="task-keywords">${keywords.map((keyword) => `<span>${escapeHTML(keyword)}</span>`).join("")}</div>` : "";
   const themeChip = state.activeThemeId === ALL_THEME_ID ? `<span class="theme-chip">${escapeHTML(getTheme(event.themeId).icon)} ${escapeHTML(getTheme(event.themeId).name)}</span>` : "";
   const action = done
     ? `<button class="undo-button" type="button" data-undo="${escapeHTML(event.id)}">撤销完成</button>`
@@ -723,6 +728,7 @@ function eventCardMarkup(event) {
           <span class="task-time">${escapeHTML(timeInfo.text)}${overdue ? '<span class="overdue-badge">已逾期</span>' : ""}</span>
         </div>
         <h3>${escapeHTML(event.title)}</h3>
+        ${keywordMarkup}
         ${locationMarkup ? `<div class="task-meta">${locationMarkup}</div>` : ""}
         ${nextMarkup}
       </div>
@@ -842,6 +848,7 @@ function minimalCardMarkup(event, list, current = false, backIndex = 0) {
   const timeInfo = formatEventTime(event);
   const conflict = dueConflict(event, list);
   const theme = getTheme(event.themeId);
+  const keywords = normalizeKeywordList(event.keywords);
   return `
     <article class="minimal-task-card ${current ? "is-current" : `deck-back-${backIndex}`} ${conflict ? "has-conflict" : ""}"
       data-task-id="${escapeHTML(event.id)}" style="--priority-color:${info.color}">
@@ -853,11 +860,13 @@ function minimalCardMarkup(event, list, current = false, backIndex = 0) {
       <h3>${escapeHTML(event.title)}</h3>
       <div class="minimal-card-time">${escapeHTML(timeInfo.text)}</div>
       <div class="minimal-card-meta">${event.location ? `<span>⌖ ${escapeHTML(event.location)}</span>` : ""}${event.source ? `<span>来源 · ${escapeHTML(event.source)}</span>` : ""}</div>
+      ${keywords.length ? `<div class="minimal-card-keywords">${keywords.slice(0, 5).map((keyword) => `<span>${escapeHTML(keyword)}</span>`).join("")}</div>` : ""}
       <div class="minimal-card-notes">${escapeHTML(event.nextAction || event.requirements || "暂无补充要求")}</div>
       <div class="minimal-card-badges">
         ${event.reminder15 ? '<span class="minimal-badge reminder">已设置提前 15 分钟提醒</span>' : ""}
         ${conflict ? '<span class="minimal-badge conflict">时间冲突，请删除或修改时间</span>' : ""}
       </div>
+      ${current ? `<button class="minimal-card-delete" type="button" data-minimal-delete="${escapeHTML(event.id)}">删除这张卡片</button>` : ""}
     </article>`;
 }
 
@@ -890,7 +899,7 @@ function renderMinimalScreen() {
 }
 
 function updateMinimalSplit(value) {
-  const numeric = Math.max(26, Math.min(74, Number(value) || 50));
+  const numeric = Math.max(32, Math.min(68, Number(value) || 50));
   state.minimalSplit = numeric;
   if (dom.minimalScreen) dom.minimalScreen.style.setProperty("--minimal-split", `${numeric}%`);
   if (dom.minimalDivider) dom.minimalDivider.setAttribute("aria-orientation", window.matchMedia("(orientation: portrait)").matches ? "horizontal" : "vertical");
@@ -984,7 +993,9 @@ function updateDesignPreview() {
   const descriptions = {
     apex: "深色航站 · 绿色强调与专注玻璃面板",
     pixel: "像素田园 · 暖色农场与方块手账质感",
-    orbit: "轨道画廊 · 衬线大字与滚动轨道视觉"
+    orbit: "轨道画廊 · 衬线大字与滚动轨道视觉",
+    hero: "光影宣言 · 全屏影片、玻璃导航与大字中心舞台",
+    classic: "初代暖纸 · 回到 1.2 版的温暖手账质感"
   };
   $$(".design-option").forEach((button) => {
     const active = button.dataset.design === state.designTheme;
@@ -993,6 +1004,67 @@ function updateDesignPreview() {
     button.title = descriptions[button.dataset.design] || "";
   });
   document.documentElement.dataset.design = state.designTheme;
+}
+
+function cancelHeroVideoFade() {
+  if (heroVideoFadeFrame) cancelAnimationFrame(heroVideoFadeFrame);
+  heroVideoFadeFrame = null;
+}
+
+function fadeHeroVideoTo(targetOpacity, duration = 250) {
+  const video = document.getElementById("heroDesignVideo");
+  if (!video) return;
+  cancelHeroVideoFade();
+  const from = Number.parseFloat(getComputedStyle(video).opacity) || 0;
+  const startedAt = performance.now();
+  const step = (now) => {
+    const progress = Math.min(1, (now - startedAt) / duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    video.style.opacity = String(from + (targetOpacity - from) * eased);
+    if (progress < 1) heroVideoFadeFrame = requestAnimationFrame(step);
+    else heroVideoFadeFrame = null;
+  };
+  heroVideoFadeFrame = requestAnimationFrame(step);
+}
+
+function syncHeroVideoTheme() {
+  const video = document.getElementById("heroDesignVideo");
+  if (!video) return;
+  if (state.designTheme !== "hero") {
+    video.pause();
+    cancelHeroVideoFade();
+    video.style.opacity = "0";
+    heroVideoFadingOut = false;
+    return;
+  }
+  heroVideoFadingOut = false;
+  video.play().then(() => fadeHeroVideoTo(1)).catch(() => {});
+}
+
+function initHeroDesignVideo() {
+  const video = document.getElementById("heroDesignVideo");
+  if (!video || video.dataset.fadeBound === "true") return;
+  video.dataset.fadeBound = "true";
+  video.muted = true;
+  const fadeIn = () => fadeHeroVideoTo(1);
+  video.addEventListener("loadeddata", fadeIn);
+  video.addEventListener("play", fadeIn);
+  video.addEventListener("timeupdate", () => {
+    if (!video.duration || heroVideoFadingOut) return;
+    if (video.duration - video.currentTime <= 0.55) {
+      heroVideoFadingOut = true;
+      fadeHeroVideoTo(0);
+    }
+  });
+  video.addEventListener("ended", () => {
+    cancelHeroVideoFade();
+    video.style.opacity = "0";
+    window.setTimeout(() => {
+      video.currentTime = 0;
+      heroVideoFadingOut = false;
+      video.play().then(() => fadeHeroVideoTo(1)).catch(() => {});
+    }, 100);
+  });
 }
 
 function updateScrollThemeMotion() {
@@ -1017,11 +1089,12 @@ function initScrollThemeMotion() {
 }
 
 function applyDesignTheme(name, persist = true) {
-  const allowed = ["apex", "pixel", "orbit"];
+  const allowed = ["apex", "pixel", "orbit", "hero", "classic"];
   state.designTheme = allowed.includes(name) ? name : "apex";
   document.body.dataset.design = state.designTheme;
   if (activeStorageScope) storageSet(DESIGN_KEY, state.designTheme);
   updateDesignPreview();
+  syncHeroVideoTheme();
   if (persist) scheduleCloudSave();
 }
 
@@ -1058,7 +1131,7 @@ function scheduleTaskNotifications() {
       if (delay > 0 && delay < 24 * 60 * 60 * 1000) {
         const timer = window.setTimeout(() => {
           try {
-            new Notification("别急 DDL 任务提醒", { body: `${event.title} · ${event.location || "查看任务详情"}`, tag: event.id });
+            new Notification("别念了 StopTalking 任务提醒", { body: `${event.title} · ${event.location || "查看任务详情"}`, tag: event.id });
           } catch (error) { /* Notification can fail in background-restricted browsers. */ }
         }, delay);
         notificationTimers.set(event.id, timer);
@@ -1114,10 +1187,22 @@ function openFocusModal() {
   }
   dom.focusSetup.hidden = Boolean(state.focusSession);
   dom.focusFlight.hidden = !state.focusSession;
+  dom.focusCustomField.hidden = dom.focusDuration.value !== "custom";
   dom.focusSky.dataset.sky = state.focusSky;
   $$(".focus-preset").forEach((button) => button.classList.toggle("is-active", button.dataset.focusSky === state.focusSky));
   renderFocusSession();
   openModal("focusModal");
+}
+
+function getFocusDurationMinutes() {
+  const selected = dom.focusDuration.value;
+  const minutes = selected === "custom" ? Number(dom.focusCustomMinutes.value) : Number(selected);
+  if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) {
+    showToast("自定义专注时间需要在 1 到 240 分钟之间");
+    dom.focusCustomMinutes.focus();
+    return null;
+  }
+  return Math.round(minutes);
 }
 
 function renderFocusSession() {
@@ -1174,7 +1259,8 @@ function finishFocusSession() {
 }
 
 function startFocusTimer() {
-  const minutes = Number(dom.focusDuration.value || 25);
+  const minutes = getFocusDurationMinutes();
+  if (!minutes) return;
   const title = dom.focusTaskTitle.value.trim() || "专注练习";
   state.focusSession = { title, durationMinutes: minutes, durationSeconds: minutes * 60, remainingSeconds: minutes * 60, startAt: Date.now(), endAt: Date.now() + minutes * 60000, status: "running" };
   saveFocusSession();
@@ -1218,7 +1304,8 @@ function stopFocusTimer() {
 
 function addFocusToTimeline() {
   const title = dom.focusTaskTitle.value.trim() || "专注练习";
-  const minutes = Number(dom.focusDuration.value || 25);
+  const minutes = getFocusDurationMinutes();
+  if (!minutes) return;
   const dueValue = dom.focusStartTime.value || toLocalInputValue(new Date());
   const themeId = state.activeThemeId === ALL_THEME_ID ? (state.themes[0]?.id || "study") : state.activeThemeId;
   const event = { id: uid(), themeId, title, category: "专注", source: "专注航线", dueTime: toISOStringFromLocal(dueValue), location: "专注模式", nextAction: `开始 ${minutes} 分钟专注`, requirements: `本次计划专注 ${minutes} 分钟。`, urgency: "auto", reminderMinutes: Number(state.reminderSettings.minutes || 15), status: "todo" };
@@ -1350,6 +1437,7 @@ function handleTaskSubmit(event) {
     dueTime,
     location: dom.taskLocation.value.trim(),
     nextAction: dom.taskNextAction.value.trim() || "先确认要求和截止时间",
+    keywords: normalizeKeywordList(dom.taskKeywords.value),
     requirements: dom.taskRequirements.value.trim(),
     urgency: dom.taskUrgency.value,
     reminderMinutes: Number(dom.taskReminderMinutes.value || 0),
@@ -1502,6 +1590,23 @@ function inferDueTime(text) {
   return date;
 }
 
+function normalizeKeywordList(value) {
+  const raw = Array.isArray(value) ? value : String(value || "").split(/[,，、;\n]+/);
+  return Array.from(new Set(raw.map((item) => String(item).trim()).filter(Boolean))).slice(0, 10);
+}
+
+function extractTaskKeywords(text, category = "") {
+  const content = String(text || "");
+  const matchingRule = state.keywordRules.find((rule) => rule.label === category);
+  const candidates = [
+    category,
+    ...splitKeywords(matchingRule?.keywords || ""),
+    ...splitKeywords(state.aiConfig.urgentKeywords)
+  ];
+  const found = candidates.filter((keyword) => keyword && content.includes(keyword));
+  return normalizeKeywordList(found.length ? found : category ? [category] : []);
+}
+
 function parseNotice(text, themeId) {
   const segments = text.replace(/\r/g, "").split(/[。；;\n]+/).map((segment) => segment.replace(/^[，,\s]+|[，,\s]+$/g, "").trim()).filter((segment) => segment.length > 3);
   const source = extractSource(text);
@@ -1520,13 +1625,14 @@ function parseNotice(text, themeId) {
       location: extractLocation(segment),
       nextAction: nextActionFor(category),
       requirements: segment,
+      keywords: extractTaskKeywords(segment, category),
       urgency: urgencyFromText(segment),
       status: "todo"
     });
   }
   if (!tasks.length && text.trim()) {
     const category = categoryFromText(text);
-    tasks.push({ title: text.trim().slice(0, 48), themeId, category, source, dueTime: "", location: extractLocation(text), nextAction: nextActionFor(category), requirements: text.trim(), urgency: "auto", status: "todo" });
+    tasks.push({ title: text.trim().slice(0, 48), themeId, category, source, dueTime: "", location: extractLocation(text), nextAction: nextActionFor(category), requirements: text.trim(), keywords: extractTaskKeywords(text, category), urgency: "auto", status: "todo" });
   }
   return tasks;
 }
@@ -1535,9 +1641,24 @@ function renderPreview() {
   dom.previewTitle.textContent = `识别到 ${state.preview.length} 件事`;
   dom.previewList.innerHTML = state.preview.map((item, index) => `
     <div class="preview-item" data-preview-index="${index}">
-      <input class="preview-title" type="text" value="${escapeHTML(item.title)}" aria-label="事项标题">
-      <input class="preview-due" type="datetime-local" value="${escapeHTML(toLocalInputValue(item.dueTime))}" aria-label="事项时间">
-      <button class="preview-remove" type="button" data-remove-preview="${index}" aria-label="移除这一项">×</button>
+      <div class="preview-item-head">
+        <input class="preview-title" type="text" value="${escapeHTML(item.title)}" aria-label="事项标题" placeholder="任务标题">
+        <button class="preview-remove" type="button" data-remove-preview="${index}" aria-label="移除这一项">×</button>
+      </div>
+      <div class="preview-fields">
+        <label><span>时间</span><input class="preview-due" type="datetime-local" value="${escapeHTML(toLocalInputValue(item.dueTime))}" aria-label="事项时间"></label>
+        <label><span>类型</span><input class="preview-category" type="text" value="${escapeHTML(item.category || "作业")}" aria-label="任务类型"></label>
+        <label><span>来源</span><input class="preview-source" type="text" value="${escapeHTML(item.source || "通知")}" aria-label="信息来源"></label>
+        <label><span>地点</span><input class="preview-location" type="text" value="${escapeHTML(item.location || "")}" placeholder="未识别" aria-label="地点"></label>
+        <label><span>紧急程度</span><select class="preview-urgency" aria-label="紧急程度">
+          <option value="auto" ${item.urgency === "auto" ? "selected" : ""}>自动判断</option>
+          <option value="red" ${item.urgency === "red" ? "selected" : ""}>红色 · 先做</option>
+          <option value="yellow" ${item.urgency === "yellow" ? "selected" : ""}>黄色 · 再做</option>
+          <option value="green" ${item.urgency === "green" ? "selected" : ""}>绿色 · 可以等等</option>
+        </select></label>
+        <label class="preview-keywords-field"><span>自动提取关键词</span><input class="preview-keywords" type="text" value="${escapeHTML(normalizeKeywordList(item.keywords).join(", "))}" placeholder="用逗号分隔" aria-label="关键词"></label>
+      </div>
+      <label class="preview-requirements-field"><span>要求摘要</span><textarea class="preview-requirements" rows="2" aria-label="要求摘要">${escapeHTML(item.requirements || "")}</textarea></label>
     </div>
   `).join("");
   dom.previewPanel.hidden = false;
@@ -1568,6 +1689,7 @@ ${rules}
       "urgency": "auto|red|yellow|green",
       "location": "地点或空字符串",
       "firstStep": "下一步行动",
+      "keywords": ["自动提取的关键词"],
       "requirements": "原始要求摘要"
     }
   ]
@@ -1591,14 +1713,16 @@ async function analyzeWithAI(text, themeId, imageData = "") {
     if (!items.length) throw new Error("云端 AI 没有返回任务");
     return items.slice(0, 6).map((item) => {
       const date = toDate(item.due || item.dueTime || "");
+      const category = String(item.category || "作业").slice(0, 30);
       return {
         title: String(item.title || "待确认事项").slice(0, 80),
         themeId,
-        category: String(item.category || "作业").slice(0, 30),
+        category,
         source: String(item.source || extractSource(text)).slice(0, 40),
         dueTime: date ? date.toISOString() : "",
         location: String(item.location || "").slice(0, 80),
         nextAction: String(item.firstStep || item.nextAction || nextActionFor(item.category || "作业")).slice(0, 100),
+        keywords: normalizeKeywordList(item.keywords || extractTaskKeywords(text, category)),
         requirements: String(item.requirements || "").slice(0, 300),
         urgency: ["red", "yellow", "green"].includes(item.urgency) ? item.urgency : "auto",
         status: "todo"
@@ -1631,14 +1755,16 @@ async function analyzeWithAI(text, themeId, imageData = "") {
   return parsed.tasks.slice(0, 6).map((item) => {
     const due = item.due || item.dueTime || "";
     const date = toDate(due);
+    const category = String(item.category || "作业").slice(0, 30);
     return {
       title: String(item.title || "待确认事项").slice(0, 80),
       themeId,
-      category: String(item.category || "作业").slice(0, 30),
+      category,
       source: String(item.source || extractSource(text)).slice(0, 40),
       dueTime: date ? date.toISOString() : "",
       location: String(item.location || "").slice(0, 80),
       nextAction: String(item.firstStep || item.nextAction || nextActionFor(item.category || "作业")).slice(0, 100),
+      keywords: normalizeKeywordList(item.keywords || extractTaskKeywords(text, category)),
       requirements: String(item.requirements || "").slice(0, 300),
       urgency: ["red", "yellow", "green"].includes(item.urgency) ? item.urgency : "auto",
       status: "todo"
@@ -1707,6 +1833,12 @@ function confirmImport() {
       id: uid(),
       themeId,
       title: $(".preview-title", row).value.trim() || item.title,
+      category: $(".preview-category", row).value.trim() || item.category || "自定义",
+      source: $(".preview-source", row).value.trim() || item.source || "通知",
+      location: $(".preview-location", row).value.trim(),
+      urgency: $(".preview-urgency", row).value || "auto",
+      keywords: normalizeKeywordList($(".preview-keywords", row).value),
+      requirements: $(".preview-requirements", row).value.trim(),
       dueTime: toISOStringFromLocal($(".preview-due", row).value),
       rawTextHash: state.importTextHash
     };
@@ -1753,6 +1885,7 @@ function openDetail(id) {
   dom.detailSource.textContent = event.source || "未标注来源";
   dom.detailType.textContent = event.category || "未设置";
   dom.detailNextAction.textContent = event.nextAction || "还没有填写下一步行动";
+  dom.detailKeywords.textContent = normalizeKeywordList(event.keywords).join(" · ") || "还没有提取关键词";
   dom.detailRequirements.textContent = event.requirements || "还没有填写详细要求";
   dom.detailCompleteButton.textContent = event.status === "done" ? "撤销完成" : "标记完成";
   dom.detailReminderButton.disabled = !event.dueTime;
@@ -1769,11 +1902,11 @@ function downloadReminder(event, overrideMinutes = null) {
   if (Number(minutes) === 0) { showToast("这个任务设置为不提醒"); return; }
   const end = new Date(due.getTime() + 30 * 60000);
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Bieji DDL 2//Campus Timeline//ZH-CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
-    "BEGIN:VEVENT", `UID:${icsEscape(event.id)}@bieji-ddl.v2`, `DTSTAMP:${toICSDate(new Date())}`, `DTSTART:${toICSDate(due)}`, `DTEND:${toICSDate(end)}`,
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StopTalking 1.8//Campus Timeline//ZH-CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VEVENT", `UID:${icsEscape(event.id)}@stop-talking.v2`, `DTSTAMP:${toICSDate(new Date())}`, `DTSTART:${toICSDate(due)}`, `DTEND:${toICSDate(end)}`,
     `SUMMARY:${icsEscape(event.title)}`, `LOCATION:${icsEscape(event.location || "")}`,
     `DESCRIPTION:${icsEscape(`${event.nextAction || ""}\n${event.requirements || ""}\n来源：${event.source || "未标注来源"}`)}`,
-    "BEGIN:VALARM", `TRIGGER:-PT${minutes}M`, "ACTION:DISPLAY", `DESCRIPTION:${icsEscape(`别急 DDL：${event.title}`)}`, "END:VALARM",
+    "BEGIN:VALARM", `TRIGGER:-PT${minutes}M`, "ACTION:DISPLAY", `DESCRIPTION:${icsEscape(`别念了 StopTalking：${event.title}`)}`, "END:VALARM",
     "END:VEVENT", "END:VCALENDAR"
   ];
   const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
@@ -2042,7 +2175,7 @@ function downloadOverviewImage() {
   ctx.fillText(`${theme.name} · ${dom.overviewTitle.textContent}`, 58, 86);
   ctx.font = '400 18px "Microsoft YaHei"';
   ctx.fillStyle = "rgba(255,253,248,0.72)";
-  ctx.fillText(`别急 DDL 主题总览 · ${new Date().toLocaleDateString("zh-CN")}`, 58, 122);
+  ctx.fillText(`别念了 StopTalking · ${new Date().toLocaleDateString("zh-CN")}`, 58, 122);
   ctx.font = '800 72px "Microsoft YaHei"';
   ctx.fillStyle = "#fffdf8";
   ctx.fillText(String(list.length), 58, 195);
@@ -2091,10 +2224,11 @@ function openDetailEdit(field = "time") {
   dom.editTaskReminderMinutes.value = String(event.reminderMinutes ?? state.reminderSettings.minutes ?? 15);
   dom.editTaskLocation.value = event.location || "";
   dom.editTaskNextAction.value = event.nextAction || "";
+  dom.editTaskKeywords.value = normalizeKeywordList(event.keywords).join(", ");
   dom.editTaskRequirements.value = event.requirements || "";
   dom.detailEditPanel.hidden = false;
   dom.detailEditPanel.style.display = "block";
-  const fieldMap = { time: dom.editTaskDueTime, location: dom.editTaskLocation, source: dom.editTaskSource, category: dom.editTaskCategory };
+  const fieldMap = { time: dom.editTaskDueTime, location: dom.editTaskLocation, source: dom.editTaskSource, category: dom.editTaskCategory, keywords: dom.editTaskKeywords };
   window.setTimeout(() => (fieldMap[field] || dom.editTaskTitle).focus(), 80);
 }
 
@@ -2109,6 +2243,7 @@ function handleDetailEditSubmit(event) {
   target.urgency = dom.editTaskUrgency.value;
   target.location = dom.editTaskLocation.value.trim();
   target.nextAction = dom.editTaskNextAction.value.trim();
+  target.keywords = normalizeKeywordList(dom.editTaskKeywords.value);
   target.requirements = dom.editTaskRequirements.value.trim();
   target.reminderMinutes = Number(dom.editTaskReminderMinutes.value || 0);
   saveEvents();
@@ -2263,22 +2398,104 @@ function playDumplingLaugh() {
   } catch (error) { /* Audio requires user interaction. */ }
 }
 
+function smartLocalRemoveBackground(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onerror = () => reject(new Error("图片加载失败"));
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      const data = pixels.data;
+      const width = canvas.width;
+      const height = canvas.height;
+      const edgeSamples = [];
+      const step = Math.max(1, Math.floor(Math.min(width, height) / 120));
+      for (let x = 0; x < width; x += step) edgeSamples.push(x, x + (height - 1) * width);
+      for (let y = 0; y < height; y += step) edgeSamples.push(y * width, y * width + width - 1);
+      const samples = edgeSamples.map((pixel) => {
+        const index = pixel * 4;
+        return [data[index], data[index + 1], data[index + 2]];
+      });
+      const cornerIndexes = [0, (width - 1) * 4, (height - 1) * width * 4, ((height - 1) * width + width - 1) * 4];
+      let centers = cornerIndexes.slice(0, 3).map((index) => [data[index], data[index + 1], data[index + 2]]);
+      for (let iteration = 0; iteration < 7; iteration += 1) {
+        const sums = centers.map(() => [0, 0, 0, 0]);
+        samples.forEach((sample) => {
+          let best = 0;
+          let bestDistance = Infinity;
+          centers.forEach((center, centerIndex) => {
+            const value = (sample[0] - center[0]) ** 2 + (sample[1] - center[1]) ** 2 + (sample[2] - center[2]) ** 2;
+            if (value < bestDistance) { bestDistance = value; best = centerIndex; }
+          });
+          sums[best][0] += sample[0]; sums[best][1] += sample[1]; sums[best][2] += sample[2]; sums[best][3] += 1;
+        });
+        centers = sums.map((sum, index) => sum[3] ? [sum[0] / sum[3], sum[1] / sum[3], sum[2] / sum[3]] : centers[index]);
+      }
+      const distance = (index) => {
+        let best = Infinity;
+        centers.forEach((center) => {
+          const value = Math.sqrt((data[index] - center[0]) ** 2 + (data[index + 1] - center[1]) ** 2 + (data[index + 2] - center[2]) ** 2);
+          if (value < best) best = value;
+        });
+        return best;
+      };
+      const tolerance = Math.max(28, Number(dom.petBgTolerance.value || 38) * 1.55);
+      const visited = new Uint8Array(width * height);
+      const queue = [];
+      for (let x = 0; x < width; x += 1) queue.push(x, (height - 1) * width + x);
+      for (let y = 0; y < height; y += 1) queue.push(y * width, y * width + width - 1);
+      let cursor = 0;
+      let removed = 0;
+      while (cursor < queue.length) {
+        const pixel = queue[cursor++];
+        if (visited[pixel]) continue;
+        visited[pixel] = 1;
+        const index = pixel * 4;
+        if (data[index + 3] === 0 || distance(index) > tolerance) continue;
+        data[index + 3] = 0;
+        removed += 1;
+        const x = pixel % width;
+        const y = Math.floor(pixel / width);
+        if (x > 0) queue.push(pixel - 1);
+        if (x < width - 1) queue.push(pixel + 1);
+        if (y > 0) queue.push(pixel - width);
+        if (y < height - 1) queue.push(pixel + width);
+      }
+      if (removed < width * height * 0.015) {
+        reject(new Error("没有识别到明显背景，请换一张主体更清晰的图片"));
+        return;
+      }
+      context.putImageData(pixels, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.src = source;
+  });
+}
+
 async function removePetBackgroundAI() {
   const source = state.petOriginalDraft || state.petImageDraft;
   if (!source) { showToast("请先上传桌宠图片"); return; }
-  if (!window.BiejiCloud?.isReady()) { showToast("请先登录云账号后再使用 AI 抠图"); return; }
   const button = dom.removePetBackgroundAIButton;
   button.disabled = true;
-  button.textContent = "AI 抠图中…";
+  button.textContent = "智能识别主体中…";
   try {
-    const result = await window.BiejiCloud.removeBackground(source);
-    if (!result.imageData) throw new Error("AI 没有返回图片");
-    state.petImageDraft = result.imageData;
-    state.petOriginalDraft = result.imageData;
+    let resultImage = "";
+    if (window.BiejiCloud?.isReady() && window.BiejiCloud.aiEnabled) {
+      try {
+        const result = await window.BiejiCloud.removeBackground(source);
+        resultImage = result.imageData || "";
+      } catch (error) { /* Local matting below remains available offline. */ }
+    }
+    if (!resultImage) resultImage = await smartLocalRemoveBackground(source);
+    state.petImageDraft = resultImage;
     updatePetPreview();
-    showToast("AI 抠图完成");
+    showToast("智能抠图完成，可继续调整强度后重试");
   } catch (error) {
-    showToast(error.message || "AI 抠图失败，可改用本地抠图");
+    showToast(error.message || "智能抠图失败，请换一张背景更简单的图片");
   } finally {
     button.disabled = false;
     button.textContent = "AI 智能抠图";
@@ -2387,6 +2604,18 @@ function bindMinimalActions() {
   dom.minimalAnalyzeButton.addEventListener("click", analyzeMinimalInput);
 
   dom.minimalDeck.addEventListener("click", (event) => {
+    const minimalDeleteButton = event.target.closest("[data-minimal-delete]");
+    if (minimalDeleteButton) {
+      const target = state.events.find((item) => item.id === minimalDeleteButton.dataset.minimalDelete);
+      if (target) {
+        target.deleted = true;
+        saveEvents();
+        state.minimalIndex = 0;
+        renderAll();
+        showToast("卡片已删除，可重新粘贴恢复");
+      }
+      return;
+    }
     const editButton = event.target.closest("[data-conflict-edit]");
     if (editButton) { openDetail(editButton.dataset.conflictEdit); openDetailEdit("time"); return; }
     const deleteButton = event.target.closest("[data-conflict-delete]");
@@ -2400,6 +2629,7 @@ function bindMinimalActions() {
   let longPressTimer = null;
   dom.minimalDeck.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
+    if (event.target.closest("[data-minimal-delete]")) return;
     const card = event.target.closest(".minimal-task-card.is-current");
     if (!card) return;
     const taskId = card.dataset.taskId;
@@ -2421,8 +2651,10 @@ function bindMinimalActions() {
       gesture.moved = true;
       window.clearTimeout(longPressTimer);
     }
-    if (!gesture.longTriggered) {
-      gesture.card.style.transform = `translate(${gesture.dx}px, ${gesture.dy}px) rotate(${gesture.dx * 0.035}deg)`;
+    if (!gesture.longTriggered && Math.abs(gesture.dx) > Math.abs(gesture.dy)) {
+      gesture.card.style.transform = `translate(${gesture.dx}px, 0) rotate(${gesture.dx * 0.025}deg)`;
+    } else {
+      gesture.card.style.transform = "";
     }
   });
   const finishGesture = (event) => {
@@ -2437,9 +2669,7 @@ function bindMinimalActions() {
       changeMinimalPage(current.dx < 0 ? 1 : -1);
       return;
     }
-    if (current.dy < -65 && Math.abs(current.dy) > Math.abs(current.dx)) {
-      deleteMinimalCurrent();
-    }
+    if (current.dy < -65 && Math.abs(current.dy) > Math.abs(current.dx)) return;
   };
   dom.minimalDeck.addEventListener("pointerup", finishGesture);
   dom.minimalDeck.addEventListener("pointercancel", finishGesture);
@@ -2451,6 +2681,7 @@ function bindMinimalActions() {
   let resizing = false;
   dom.minimalDivider.addEventListener("pointerdown", (event) => {
     resizing = true;
+    dom.minimalDivider.classList.add("is-resizing");
     dom.minimalDivider.setPointerCapture(event.pointerId);
     event.preventDefault();
   });
@@ -2459,9 +2690,9 @@ function bindMinimalActions() {
     const rect = dom.minimalScreen.getBoundingClientRect();
     const portrait = window.matchMedia("(orientation: portrait)").matches;
     const ratio = portrait ? ((event.clientY - rect.top) / rect.height) * 100 : ((event.clientX - rect.left) / rect.width) * 100;
-    updateMinimalSplit(ratio);
+    updateMinimalSplit(Math.max(32, Math.min(68, ratio)));
   });
-  const stopResize = () => { resizing = false; };
+  const stopResize = () => { resizing = false; dom.minimalDivider.classList.remove("is-resizing"); };
   dom.minimalDivider.addEventListener("pointerup", stopResize);
   dom.minimalDivider.addEventListener("pointercancel", stopResize);
   window.addEventListener("resize", () => { updateMinimalSplit(state.minimalSplit); if (dom.desktopPet) renderPet(); });
@@ -2501,6 +2732,11 @@ function bindV3Actions() {
   dom.focusStopButton.addEventListener("click", stopFocusTimer);
   dom.focusScheduleButton.addEventListener("click", addFocusToTimeline);
   dom.focusNotificationButton.addEventListener("click", requestNotificationPermission);
+  dom.focusDuration.addEventListener("change", () => {
+    const custom = dom.focusDuration.value === "custom";
+    dom.focusCustomField.hidden = !custom;
+    if (custom) window.setTimeout(() => dom.focusCustomMinutes.focus(), 40);
+  });
   dom.requestNotificationPermissionButton.addEventListener("click", requestNotificationPermission);
   dom.saveReminderSettingsButton.addEventListener("click", saveReminderSettings);
   $$(".focus-preset").forEach((button) => {
@@ -2706,6 +2942,7 @@ async function init() {
     taskReminderMinutes: $("#taskReminderMinutes"),
     taskLocation: $("#taskLocation"),
     taskNextAction: $("#taskNextAction"),
+    taskKeywords: $("#taskKeywords"),
     taskRequirements: $("#taskRequirements"),
     importTheme: $("#importTheme"),
     noticeInput: $("#noticeInput"),
@@ -2724,6 +2961,7 @@ async function init() {
     detailSource: $("#detailSource"),
     detailType: $("#detailType"),
     detailNextAction: $("#detailNextAction"),
+    detailKeywords: $("#detailKeywords"),
     detailRequirements: $("#detailRequirements"),
     detailReminderButton: $("#detailReminderButton"),
     detailCompleteButton: $("#detailCompleteButton"),
@@ -2739,6 +2977,7 @@ async function init() {
     editTaskReminderMinutes: $("#editTaskReminderMinutes"),
     editTaskLocation: $("#editTaskLocation"),
     editTaskNextAction: $("#editTaskNextAction"),
+    editTaskKeywords: $("#editTaskKeywords"),
     editTaskRequirements: $("#editTaskRequirements"),
     aiStatus: $("#aiStatus"),
     aiSettingsButton: $("#aiSettingsButton"),
@@ -2785,6 +3024,8 @@ async function init() {
     focusFlight: $("#focusFlight"),
     focusTaskTitle: $("#focusTaskTitle"),
     focusDuration: $("#focusDuration"),
+    focusCustomField: $("#focusCustomField"),
+    focusCustomMinutes: $("#focusCustomMinutes"),
     focusStartTime: $("#focusStartTime"),
     focusSky: $("#focusSky"),
     focusRouteFill: $("#focusRouteFill"),
@@ -2870,6 +3111,7 @@ async function init() {
   bindV3Actions();
   bindMinimalActions();
   applyMode(state.mode);
+  initHeroDesignVideo();
   applyDesignTheme(state.designTheme, false);
   initScrollThemeMotion();
   updateScrim();
