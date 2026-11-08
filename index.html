@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0b0b0d">
   <meta name="description" content="别念了 StopTalking，把纷乱通知变成清楚的下一步。">
-  <title>别念了 (StopTalking) 1.8 - 把纷乱通知变成清楚行动</title>
+  <title>别念了 (StopTalking) 1.9 - 把纷乱通知变成清楚行动</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fustat:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans:wght@400;500;600;700&family=Schibsted+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
@@ -26,7 +26,7 @@
 
   <div class="auth-screen" id="authScreen" aria-hidden="false" data-ready="false">
     <div class="auth-card">
-      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别念了</strong><small>StopTalking · 1.8</small></div></div>
+      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别念了</strong><small>StopTalking · 1.9</small></div></div>
       <span class="eyebrow">LESS NOISE. MORE DONE.</span>
       <h1>把纷乱通知，变成清楚的下一步。</h1>
       <p>登录后，课程、作业、提醒和专注计划都只属于你。安静一点，事情反而更清楚。</p>
@@ -56,7 +56,7 @@
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none"><path d="M16 4.5C9.65 4.5 4.5 9.65 4.5 16s5.15 11.5 11.5 11.5S27.5 22.35 27.5 16 22.35 4.5 16 4.5Z" stroke="currentColor" stroke-width="2.2"/><path d="M16 9v7.2l4.8 2.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </span>
-          <span class="brand-copy"><strong>别念了 <em>StopTalking</em></strong><small>1.8 · LESS NOISE. MORE DONE.</small></span>
+          <span class="brand-copy"><strong>别念了 <em>StopTalking</em></strong><small>1.9 · LESS NOISE. MORE DONE.</small></span>
         </a>
         <span class="breadcrumb" id="breadcrumb">学习</span>
       </div>
@@ -162,7 +162,6 @@
               <button class="theme-stat" type="button" data-overview="urgent"><strong id="themeUrgentCount">0</strong><span>先做</span></button>
               <button class="theme-stat" type="button" data-overview="done"><strong id="themeDoneCount">0</strong><span>历史完成</span></button>
             </div>
-            <button class="theme-edit-button" id="editThemeButton" type="button">编辑主题与背景</button>
             <div class="theme-hero-actions"><button class="button button-primary" id="heroFocusButton" type="button">开始专注</button><button class="button liquid-button" id="heroImportAction" type="button">整理通知</button></div>
           </div>
           <div class="theme-visual" aria-hidden="true">
@@ -298,17 +297,7 @@
       <form id="themeForm" class="form-grid">
         <label class="field field-full"><span>主题名称</span><input id="themeFormName" type="text" maxlength="18" placeholder="例如：摄影、社团、健身" required></label>
         <label class="field"><span>主题图标</span><select id="themeFormIcon"><option>📚</option><option>🏀</option><option>🎮</option><option>📷</option><option>🎨</option><option>🌱</option><option>✦</option><option>🎵</option></select></label>
-        <label class="field"><span>主题颜色</span><select id="themeFormColor"><option value="green">森林绿</option><option value="orange">暖橙色</option><option value="blue">雾蓝色</option><option value="rose">珊瑚红</option><option value="brown">焦糖棕</option></select></label>
         <label class="field field-full"><span>主题说明</span><input id="themeFormDescription" type="text" maxlength="50" placeholder="这个主题主要放什么"></label>
-        <label class="upload-compact field-full">
-          <input id="themeBackgroundInput" type="file" accept="image/*" hidden>
-          <span class="upload-icon">↑</span>
-          <span><strong>上传主题背景图</strong><small>图片会被压缩后保存在当前浏览器</small></span>
-        </label>
-        <div class="theme-image-preview field-full" id="themeImagePreviewWrap" hidden>
-          <img id="themeImagePreview" alt="主题背景预览">
-          <button class="button button-ghost" id="clearThemeBackgroundButton" type="button">移除背景</button>
-        </div>
         <div class="form-actions"><button class="button button-ghost" type="button" data-close-modal="themeModal">取消</button><button class="button button-primary" type="submit">创建主题</button></div>
       </form>
     </div>

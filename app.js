@@ -67,8 +67,6 @@ const state = {
   mode: "detail",
   keywordRules: [],
   aiConfig: { baseUrl: "", model: "", apiKey: "", urgentKeywords: "紧急, 今天, 今晚, 马上, 立刻, 截止", ignoredKeywords: "广告, 自愿, 可选" },
-  editingThemeId: null,
-  themeBackgroundDraft: "",
   overviewType: "todo",
   pet: { ...DEFAULT_PET },
   petImageDraft: "",
@@ -670,7 +668,6 @@ function renderThemeHero() {
   }
   dom.themeName.textContent = theme.name;
   dom.themeDescription.textContent = theme.description || "自由整理你的时间和计划";
-  dom.editThemeButton.hidden = state.activeThemeId === ALL_THEME_ID;
   dom.themeIcon.textContent = theme.icon || "✦";
   dom.themeVisualCaption.textContent = palette.caption;
   dom.themeTodoCount.textContent = String(todo.length);
@@ -1452,19 +1449,11 @@ function handleTaskSubmit(event) {
   showToast(`已加入“${getTheme().name}”主题`);
 }
 
-function openThemeEditor(themeId = null) {
-  const theme = themeId ? state.themes.find((item) => item.id === themeId) : null;
-  state.editingThemeId = theme ? theme.id : null;
-  state.themeBackgroundDraft = theme?.backgroundImage || "";
+function openThemeEditor() {
   dom.themeForm.reset();
-  dom.themeModalTitle.textContent = theme ? "编辑主题" : "新建一个主题";
-  dom.themeForm.querySelector('button[type="submit"]').textContent = theme ? "保存主题" : "创建主题";
-  dom.themeFormName.value = theme?.name || "";
-  dom.themeFormIcon.value = theme?.icon || "📚";
-  dom.themeFormColor.value = theme?.color || "green";
-  dom.themeFormDescription.value = theme?.description || "";
-  dom.themeImagePreview.src = state.themeBackgroundDraft;
-  dom.themeImagePreviewWrap.hidden = !state.themeBackgroundDraft;
+  dom.themeModalTitle.textContent = "新建一个主题";
+  dom.themeForm.querySelector('button[type="submit"]').textContent = "创建主题";
+  dom.themeFormIcon.value = "📚";
   openModal("themeModal");
 }
 
@@ -1472,25 +1461,22 @@ function handleThemeSubmit(event) {
   event.preventDefault();
   const name = dom.themeFormName.value.trim();
   if (!name) { dom.themeFormName.focus(); return; }
-  const existing = state.editingThemeId ? state.themes.find((theme) => theme.id === state.editingThemeId) : null;
   const theme = {
-    id: existing?.id || `custom-${Date.now()}`,
+    id: `custom-${Date.now()}`,
     name,
     icon: dom.themeFormIcon.value,
-    color: dom.themeFormColor.value,
-    description: dom.themeFormDescription.value.trim() || existing?.description || "自定义主题空间",
-    backgroundImage: state.themeBackgroundDraft
+    color: "green",
+    description: dom.themeFormDescription.value.trim() || "自定义主题空间",
+    backgroundImage: ""
   };
-  if (existing) Object.assign(existing, theme);
-  else state.themes.push(theme);
+  state.themes.push(theme);
   saveThemes();
   state.activeThemeId = theme.id;
-  if (!existing) { state.period = "today"; state.query = ""; state.filters = { category: "", source: "", urgency: "", location: "", status: "" }; }
-  state.editingThemeId = null;
+  state.period = "today"; state.query = ""; state.filters = { category: "", source: "", urgency: "", location: "", status: "" };
   dom.themeForm.reset();
   closeModal("themeModal");
   renderAll();
-  showToast(existing ? `主题“${theme.name}”已更新` : `主题“${theme.name}”已创建`);
+  showToast(`主题“${theme.name}”已创建`);
 }
 
 function toggleComplete(id) {
@@ -1902,7 +1888,7 @@ function downloadReminder(event, overrideMinutes = null) {
   if (Number(minutes) === 0) { showToast("这个任务设置为不提醒"); return; }
   const end = new Date(due.getTime() + 30 * 60000);
   const lines = [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StopTalking 1.8//Campus Timeline//ZH-CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//StopTalking 1.9//Campus Timeline//ZH-CN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
     "BEGIN:VEVENT", `UID:${icsEscape(event.id)}@stop-talking.v2`, `DTSTAMP:${toICSDate(new Date())}`, `DTSTART:${toICSDate(due)}`, `DTEND:${toICSDate(end)}`,
     `SUMMARY:${icsEscape(event.title)}`, `LOCATION:${icsEscape(event.location || "")}`,
     `DESCRIPTION:${icsEscape(`${event.nextAction || ""}\n${event.requirements || ""}\n来源：${event.source || "未标注来源"}`)}`,
@@ -2014,7 +2000,7 @@ function bindThemeAndTaskActions() {
   [dom.openAddButton, dom.newTaskSideButton, dom.floatingAddButton, dom.emptyAddButton].forEach((button) => {
     button.addEventListener("click", () => openTaskModal(state.activeThemeId));
   });
-  dom.newThemeButton.addEventListener("click", () => openThemeEditor(null));
+  dom.newThemeButton.addEventListener("click", openThemeEditor);
   dom.taskForm.addEventListener("submit", handleTaskSubmit);
   dom.themeForm.addEventListener("submit", handleThemeSubmit);
   dom.taskCategory.addEventListener("change", () => {
@@ -2751,23 +2737,6 @@ function bindV3Actions() {
     if (button) applyMode(button.dataset.mode);
   });
 
-  dom.editThemeButton.addEventListener("click", () => openThemeEditor(state.activeThemeId));
-  dom.themeBackgroundInput.addEventListener("change", () => {
-    const file = dom.themeBackgroundInput.files?.[0];
-    if (!file) return;
-    resizeImageFile(file, 1400, 760, 0.8).then((dataUrl) => {
-      state.themeBackgroundDraft = dataUrl;
-      dom.themeImagePreview.src = dataUrl;
-      dom.themeImagePreviewWrap.hidden = false;
-      showToast("主题背景已载入，保存后生效");
-    }).catch((error) => showToast(error.message || "背景图片处理失败"));
-  });
-  dom.clearThemeBackgroundButton.addEventListener("click", () => {
-    state.themeBackgroundDraft = "";
-    dom.themeImagePreview.src = "";
-    dom.themeImagePreviewWrap.hidden = true;
-  });
-
   dom.themeHero.addEventListener("click", (event) => {
     const button = event.target.closest("[data-overview]");
     if (button) openOverview(button.dataset.overview);
@@ -2914,7 +2883,6 @@ async function init() {
     newTaskSideButton: $("#newTaskSideButton"),
     newThemeButton: $("#newThemeButton"),
     petSettingsButton: $("#petSettingsButton"),
-    editThemeButton: $("#editThemeButton"),
     floatingAddButton: $("#floatingAddButton"),
     themeModal: $("#themeModal"),
     themeModalTitle: $("#themeModalTitle"),
@@ -2924,12 +2892,7 @@ async function init() {
     themeForm: $("#themeForm"),
     themeFormName: $("#themeFormName"),
     themeFormIcon: $("#themeFormIcon"),
-    themeFormColor: $("#themeFormColor"),
     themeFormDescription: $("#themeFormDescription"),
-    themeBackgroundInput: $("#themeBackgroundInput"),
-    themeImagePreviewWrap: $("#themeImagePreviewWrap"),
-    themeImagePreview: $("#themeImagePreview"),
-    clearThemeBackgroundButton: $("#clearThemeBackgroundButton"),
     taskForm: $("#taskForm"),
     taskTheme: $("#taskTheme"),
     taskSource: $("#taskSource"),

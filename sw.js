@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "stop-talking-v18-2026-11-08";
+const CACHE_NAME = "stop-talking-v19-2026-11-08";
 const APP_SHELL = [
   "./",
   "./index.html",
