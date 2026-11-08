@@ -82,7 +82,8 @@ const state = {
   designTheme: "apex",
   focusSky: "day",
   focusSession: null,
-  reminderSettings: { enabled: true, minutes: 15 }
+  reminderSettings: { enabled: true, minutes: 15 },
+  profileAvatar: ""
 };
 
 let focusTimer = null;
@@ -99,6 +100,59 @@ let cloudDirty = false;
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 const dom = {};
+const USER_STORAGE_PREFIX = "bieji-ddl-v17-user:";
+const LEGACY_MIGRATION_KEY = "bieji-ddl-v17-storage-scope-migrated";
+let activeStorageScope = "";
+
+function normalizeStorageScope(user) {
+  const raw = user?.email || user?.user_metadata?.username || user?.user_metadata?.display_name || "";
+  return String(raw).trim().toLowerCase().replace(/[^a-z0-9_@.-]/g, "_").slice(0, 96);
+}
+
+function storageKey(key) {
+  return activeStorageScope ? `${USER_STORAGE_PREFIX}${activeStorageScope}:${key}` : key;
+}
+
+function storageGet(key) {
+  return localStorage.getItem(storageKey(key));
+}
+
+function storageSet(key, value) {
+  if (!activeStorageScope) return;
+  localStorage.setItem(storageKey(key), value);
+}
+
+function storageRemove(key) {
+  if (!activeStorageScope) return;
+  localStorage.removeItem(storageKey(key));
+}
+
+function migrateLegacyStorageForUser() {
+  if (!activeStorageScope || localStorage.getItem(LEGACY_MIGRATION_KEY)) return;
+  const keys = [THEMES_KEY, EVENTS_KEY, MODE_KEY, KEYWORD_RULES_KEY, PET_SETTINGS_KEY, DESIGN_KEY, REMINDER_SETTINGS_KEY, MINIMAL_SPLIT_KEY, FOCUS_KEY];
+  let copied = false;
+  keys.forEach((key) => {
+    const legacy = localStorage.getItem(key);
+    if (legacy !== null && localStorage.getItem(storageKey(key)) === null) {
+      localStorage.setItem(storageKey(key), legacy);
+      copied = true;
+    }
+  });
+  if (copied) localStorage.setItem(LEGACY_MIGRATION_KEY, "1");
+}
+
+function activateUserStorage(user) {
+  const scope = normalizeStorageScope(user);
+  if (!scope || scope === activeStorageScope) return false;
+  activeStorageScope = scope;
+  migrateLegacyStorageForUser();
+  return true;
+}
+
+function clearActiveUserStorage() {
+  activeStorageScope = "";
+}
+
 
 function pad(value) { return String(value).padStart(2, "0"); }
 function startOfDay(date = new Date()) { const result = new Date(date); result.setHours(0, 0, 0, 0); return result; }
@@ -166,19 +220,19 @@ function getDemoEvents() {
 }
 
 function loadThemes() {
-  try { const raw = localStorage.getItem(THEMES_KEY); const parsed = raw ? JSON.parse(raw) : null; return Array.isArray(parsed) && parsed.length ? parsed : getDefaultThemes(); }
+  try { const raw = storageGet(THEMES_KEY); const parsed = raw ? JSON.parse(raw) : null; return Array.isArray(parsed) && parsed.length ? parsed : getDefaultThemes(); }
   catch (error) { return getDefaultThemes(); }
 }
 function loadEvents() {
-  try { const raw = localStorage.getItem(EVENTS_KEY); const parsed = raw ? JSON.parse(raw) : null; return Array.isArray(parsed) && parsed.length ? parsed : getDemoEvents(); }
+  try { const raw = storageGet(EVENTS_KEY); const parsed = raw ? JSON.parse(raw) : null; return Array.isArray(parsed) ? parsed : getDemoEvents(); }
   catch (error) { return getDemoEvents(); }
 }
-function saveThemes() { try { localStorage.setItem(THEMES_KEY, JSON.stringify(state.themes)); } catch (error) { showToast("浏览器无法保存主题"); } scheduleCloudSave(); }
-function saveEvents() { try { localStorage.setItem(EVENTS_KEY, JSON.stringify(state.events)); } catch (error) { showToast("浏览器无法保存任务"); } scheduleCloudSave(); }
+function saveThemes() { try { storageSet(THEMES_KEY, JSON.stringify(state.themes)); } catch (error) { showToast("浏览器无法保存主题"); } scheduleCloudSave(); }
+function saveEvents() { try { storageSet(EVENTS_KEY, JSON.stringify(state.events)); } catch (error) { showToast("浏览器无法保存任务"); } scheduleCloudSave(); }
 
 
-function loadMode() { return localStorage.getItem(MODE_KEY) === "minimal" ? "minimal" : "detail"; }
-function saveMode(mode) { localStorage.setItem(MODE_KEY, mode); }
+function loadMode() { return storageGet(MODE_KEY) === "minimal" ? "minimal" : "detail"; }
+function saveMode(mode) { storageSet(MODE_KEY, mode); }
 function applyMode(mode) {
   state.mode = mode === "minimal" ? "minimal" : "detail";
   document.body.classList.toggle("minimal-mode", state.mode === "minimal");
@@ -189,7 +243,7 @@ function applyMode(mode) {
 }
 function loadAIConfig() {
   try {
-    const saved = JSON.parse(localStorage.getItem(AI_CONFIG_KEY) || "{}");
+    const saved = JSON.parse(storageGet(AI_CONFIG_KEY) || "{}");
     return { baseUrl: saved.baseUrl || "", model: saved.model || "", apiKey: sessionStorage.getItem(AI_KEY_SESSION) || "", urgentKeywords: saved.urgentKeywords || "紧急, 今天, 今晚, 马上, 立刻, 截止", ignoredKeywords: saved.ignoredKeywords || "广告, 自愿, 可选" };
   } catch (error) {
     return { baseUrl: "", model: "", apiKey: "" };
@@ -197,7 +251,7 @@ function loadAIConfig() {
 }
 function saveAIConfig(config) {
   state.aiConfig = { ...config };
-  localStorage.setItem(AI_CONFIG_KEY, JSON.stringify({ baseUrl: config.baseUrl, model: config.model, urgentKeywords: config.urgentKeywords, ignoredKeywords: config.ignoredKeywords }));
+  storageSet(AI_CONFIG_KEY, JSON.stringify({ baseUrl: config.baseUrl, model: config.model, urgentKeywords: config.urgentKeywords, ignoredKeywords: config.ignoredKeywords }));
   if (config.apiKey) sessionStorage.setItem(AI_KEY_SESSION, config.apiKey);
   else sessionStorage.removeItem(AI_KEY_SESSION);
   updateAIStatus();
@@ -205,7 +259,7 @@ function saveAIConfig(config) {
 }
 function loadKeywordRules() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEYWORD_RULES_KEY) || "null");
+    const parsed = JSON.parse(storageGet(KEYWORD_RULES_KEY) || "null");
     return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
   } catch (error) {
     return DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
@@ -213,12 +267,12 @@ function loadKeywordRules() {
 }
 function saveKeywordRules(rules) {
   state.keywordRules = rules;
-  localStorage.setItem(KEYWORD_RULES_KEY, JSON.stringify(rules));
+  storageSet(KEYWORD_RULES_KEY, JSON.stringify(rules));
   scheduleCloudSave();
 }
 function loadPetSettings() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(PET_SETTINGS_KEY) || "null");
+    const parsed = JSON.parse(storageGet(PET_SETTINGS_KEY) || "null");
     return parsed && typeof parsed === "object" ? { ...DEFAULT_PET, ...parsed } : { ...DEFAULT_PET };
   } catch (error) {
     return { ...DEFAULT_PET };
@@ -226,9 +280,10 @@ function loadPetSettings() {
 }
 function savePetSettings(settings) {
   state.pet = { ...settings };
-  localStorage.setItem(PET_SETTINGS_KEY, JSON.stringify(state.pet));
+  storageSet(PET_SETTINGS_KEY, JSON.stringify(state.pet));
   scheduleCloudSave();
 }
+
 function updateAIStatus() {
   if (!dom.aiStatus) return;
   if (window.BiejiCloud?.isReady() && window.BiejiCloud.aiEnabled) {
@@ -272,6 +327,7 @@ function buildCloudPayload() {
       mode: state.mode,
       pet: state.pet,
       keywordRules: state.keywordRules,
+      avatar: state.profileAvatar || window.BiejiCloud?.getAvatar?.() || "",
       designTheme: state.designTheme,
       reminderSettings: state.reminderSettings,
       aiSettings: {
@@ -347,7 +403,9 @@ function applyCloudSnapshot(snapshot) {
   state.events = rawTasks.map(normalizeCloudTask);
   state.mode = profile.mode === "minimal" ? "minimal" : "detail";
   state.pet = { ...DEFAULT_PET, ...(profile.pet || {}) };
-  state.designTheme = "apex";
+  state.profileAvatar = profile.avatar || window.BiejiCloud?.getAvatar?.() || state.profileAvatar || "";
+  const profileDesign = ["apex", "pixel", "orbit"].includes(profile.designTheme) ? profile.designTheme : "";
+  state.designTheme = profileDesign || storageGet(DESIGN_KEY) || "apex";
   state.reminderSettings = { enabled: true, minutes: 15, ...(profile.reminderSettings || {}) };
   state.keywordRules = Array.isArray(profile.keywordRules) ? profile.keywordRules : DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
   const aiSettings = profile.aiSettings || {};
@@ -358,11 +416,11 @@ function applyCloudSnapshot(snapshot) {
   };
   if (!state.themes.some((theme) => theme.id === state.activeThemeId)) state.activeThemeId = state.themes[0]?.id || "study";
   try {
-    localStorage.setItem(THEMES_KEY, JSON.stringify(state.themes));
-    localStorage.setItem(EVENTS_KEY, JSON.stringify(state.events));
-    localStorage.setItem(KEYWORD_RULES_KEY, JSON.stringify(state.keywordRules));
-    localStorage.setItem(PET_SETTINGS_KEY, JSON.stringify(state.pet));
-    localStorage.setItem(MODE_KEY, state.mode);
+    storageSet(THEMES_KEY, JSON.stringify(state.themes));
+    storageSet(EVENTS_KEY, JSON.stringify(state.events));
+    storageSet(KEYWORD_RULES_KEY, JSON.stringify(state.keywordRules));
+    storageSet(PET_SETTINGS_KEY, JSON.stringify(state.pet));
+    storageSet(MODE_KEY, state.mode);
   } catch (error) { /* Cloud data remains available in memory. */ }
   cloudHydrating = false;
   cloudDirty = false;
@@ -375,23 +433,31 @@ function applyCloudSnapshot(snapshot) {
   showToast("云端数据已同步");
 }
 
+function setAvatarElement(element, avatar, initial) {
+  if (!element) return;
+  if (avatar) element.innerHTML = `<img src="${avatar}" alt="个人头像">`;
+  else element.textContent = initial;
+}
+
 function updatePersonalPanel() {
   if (!dom.personalName) return;
   const cloudEnabled = Boolean(window.BiejiCloud?.enabled);
-  const username = cloudEnabled && window.BiejiCloud.isReady() ? window.BiejiCloud.getUsername() : "本地模式";
+  const signedIn = Boolean(window.BiejiCloud?.isReady?.());
+  const username = signedIn ? window.BiejiCloud.getUsername() : "未登录";
   const initial = String(username || "本").slice(0, 1).toUpperCase();
-  const offline = cloudEnabled && window.BiejiCloud.isReady() && window.BiejiCloud.isOffline();
-  const status = !cloudEnabled ? "数据保存在本机" : offline ? (cloudDirty ? "离线修改待同步" : "离线可用") : cloudDirty ? "本地修改待同步" : "云端已同步";
+  const offline = window.BiejiCloud?.isOffline?.() || false;
+  const status = !signedIn ? "请先登录" : !cloudEnabled ? "本地账号 · 离线可用" : offline ? (cloudDirty ? "离线修改待同步" : "离线可用") : cloudDirty ? "本地修改待同步" : "云端已同步";
+  const avatar = window.BiejiCloud?.getAvatar?.() || state.profileAvatar || "";
   dom.personalName.textContent = username;
-  dom.personalAvatar.textContent = initial;
+  setAvatarElement(dom.personalAvatar, avatar, initial);
   dom.personalSyncStatus.textContent = status;
   if (dom.accountDisplayName) {
     dom.accountDisplayName.textContent = username;
-    dom.accountAvatar.textContent = initial;
-    dom.accountStatusText.textContent = cloudEnabled ? (offline ? "离线模式 · 本地副本可用" : "云账号已连接") : "尚未连接云端账号";
+    setAvatarElement(dom.accountAvatar, avatar, initial);
+    dom.accountStatusText.textContent = !signedIn ? "尚未登录" : !cloudEnabled ? "本地账号 · 离线数据已保存" : offline ? "离线模式 · 本地副本可用" : "云账号已连接";
     dom.localTaskCount.textContent = String(state.events.filter((event) => !event.deleted).length);
     dom.cloudStateText.textContent = !cloudEnabled ? "本地" : offline ? "离线" : cloudDirty ? "待同步" : "已同步";
-    dom.accountModeLabel.textContent = cloudEnabled ? "账号" : "本地";
+    dom.accountModeLabel.textContent = cloudEnabled ? "账号" : "离线";
   }
 }
 
@@ -436,30 +502,56 @@ async function syncNow() {
 }
 
 function clearLocalCache() {
-  if (!window.confirm("清理本机缓存？如果已连接云端，会从云端恢复。")) return;
-  localStorage.removeItem(THEMES_KEY);
-  localStorage.removeItem(EVENTS_KEY);
-  showToast("本地缓存已清理");
+  if (!window.confirm("清理这个账号在本机的缓存？如果已连接云端，会从云端恢复。")) return;
+  [THEMES_KEY, EVENTS_KEY, MODE_KEY, KEYWORD_RULES_KEY, PET_SETTINGS_KEY, DESIGN_KEY, REMINDER_SETTINGS_KEY, MINIMAL_SPLIT_KEY, FOCUS_KEY, AI_CONFIG_KEY].forEach(storageRemove);
+  showToast("这个账号的本地缓存已清理");
   if (window.BiejiCloud?.isReady()) window.BiejiCloud.refreshNow().then((snapshot) => snapshot && applyCloudSnapshot(snapshot));
 }
 
 function resetCloudUserState() {
   cloudReady = false;
   cloudHydrating = true;
+  clearActiveUserStorage();
   state.themes = getDefaultThemes();
   state.events = [];
   state.keywordRules = DEFAULT_KEYWORD_RULES.map((rule) => ({ ...rule }));
   state.pet = { ...DEFAULT_PET };
+  state.profileAvatar = "";
   state.activeThemeId = "study";
   state.mode = "detail";
   state.query = "";
   state.filters = { category: "", source: "", urgency: "", location: "", status: "" };
-  localStorage.removeItem(THEMES_KEY);
-  localStorage.removeItem(EVENTS_KEY);
-  localStorage.removeItem(KEYWORD_RULES_KEY);
-  localStorage.removeItem(PET_SETTINGS_KEY);
   cloudHydrating = false;
   renderAll();
+}
+
+function loadActiveUserState() {
+  cloudHydrating = true;
+  state.themes = loadThemes();
+  state.events = loadEvents();
+  state.keywordRules = loadKeywordRules();
+  state.aiConfig = loadAIConfig();
+  state.pet = loadPetSettings();
+  state.mode = loadMode();
+  state.minimalSplit = Number(storageGet(MINIMAL_SPLIT_KEY) || 50);
+  state.designTheme = storageGet(DESIGN_KEY) || "apex";
+  state.profileAvatar = window.BiejiCloud?.getAvatar?.() || "";
+  state.query = "";
+  state.filters = { category: "", source: "", urgency: "", location: "", status: "" };
+  state.period = "today";
+  state.overviewType = "todo";
+  try { state.reminderSettings = { enabled: true, minutes: 15, ...(JSON.parse(storageGet(REMINDER_SETTINGS_KEY) || "{}")) }; } catch (error) { state.reminderSettings = { enabled: true, minutes: 15 }; }
+  state.focusSession = null;
+  loadFocusSession();
+  if (!state.themes.some((theme) => theme.id === state.activeThemeId)) state.activeThemeId = state.themes[0]?.id || "study";
+  populateThemeSelects();
+  dom.sortSelect.value = state.sort;
+  cloudHydrating = false;
+  applyMode(state.mode);
+  applyDesignTheme(state.designTheme, false);
+  updateAIStatus();
+  renderAll();
+  updatePersonalPanel();
 }
 
 function autoUrgency(event) {
@@ -802,7 +894,7 @@ function updateMinimalSplit(value) {
   state.minimalSplit = numeric;
   if (dom.minimalScreen) dom.minimalScreen.style.setProperty("--minimal-split", `${numeric}%`);
   if (dom.minimalDivider) dom.minimalDivider.setAttribute("aria-orientation", window.matchMedia("(orientation: portrait)").matches ? "horizontal" : "vertical");
-  localStorage.setItem(MINIMAL_SPLIT_KEY, String(numeric));
+  storageSet(MINIMAL_SPLIT_KEY, String(numeric));
 }
 
 function changeMinimalPage(direction) {
@@ -888,10 +980,48 @@ async function analyzeMinimalInput() {
 }
 
 
+function updateDesignPreview() {
+  const descriptions = {
+    apex: "深色航站 · 绿色强调与专注玻璃面板",
+    pixel: "像素田园 · 暖色农场与方块手账质感",
+    orbit: "轨道画廊 · 衬线大字与滚动轨道视觉"
+  };
+  $$(".design-option").forEach((button) => {
+    const active = button.dataset.design === state.designTheme;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.title = descriptions[button.dataset.design] || "";
+  });
+  document.documentElement.dataset.design = state.designTheme;
+}
+
+function updateScrollThemeMotion() {
+  const maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+  const progress = Math.min(1, Math.max(0, window.scrollY / maxScroll));
+  document.documentElement.style.setProperty("--page-scroll", String(progress));
+  document.documentElement.style.setProperty("--scroll-progress-width", (progress * 100).toFixed(2) + "%");
+  document.documentElement.style.setProperty("--scroll-y", Math.min(window.scrollY, 720) + "px");
+  document.body.classList.toggle("has-scrolled", window.scrollY > 28);
+}
+
+function initScrollThemeMotion() {
+  let ticking = false;
+  const requestUpdate = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => { updateScrollThemeMotion(); ticking = false; });
+  };
+  window.addEventListener("scroll", requestUpdate, { passive: true });
+  window.addEventListener("resize", requestUpdate);
+  updateScrollThemeMotion();
+}
+
 function applyDesignTheme(name, persist = true) {
-  state.designTheme = "apex";
-  document.body.dataset.design = "apex";
-  localStorage.setItem(DESIGN_KEY, "apex");
+  const allowed = ["apex", "pixel", "orbit"];
+  state.designTheme = allowed.includes(name) ? name : "apex";
+  document.body.dataset.design = state.designTheme;
+  if (activeStorageScope) storageSet(DESIGN_KEY, state.designTheme);
+  updateDesignPreview();
   if (persist) scheduleCloudSave();
 }
 
@@ -948,7 +1078,7 @@ function saveReminderSettings() {
     enabled: dom.reminderEnabled.checked,
     minutes: Number(dom.defaultReminderMinutes.value || 0)
   };
-  localStorage.setItem(REMINDER_SETTINGS_KEY, JSON.stringify(state.reminderSettings));
+  storageSet(REMINDER_SETTINGS_KEY, JSON.stringify(state.reminderSettings));
   scheduleCloudSave();
   scheduleTaskNotifications();
   closeModal("reminderModal");
@@ -957,13 +1087,13 @@ function saveReminderSettings() {
 
 
 function saveFocusSession() {
-  if (state.focusSession) localStorage.setItem(FOCUS_KEY, JSON.stringify(state.focusSession));
-  else localStorage.removeItem(FOCUS_KEY);
+  if (state.focusSession) storageSet(FOCUS_KEY, JSON.stringify(state.focusSession));
+  else storageRemove(FOCUS_KEY);
 }
 
 function loadFocusSession() {
   try {
-    const saved = JSON.parse(localStorage.getItem(FOCUS_KEY) || "null");
+    const saved = JSON.parse(storageGet(FOCUS_KEY) || "null");
     if (saved && saved.status !== "done") {
       state.focusSession = saved;
       if (saved.status === "running" && saved.endAt) saved.remainingSeconds = Math.max(0, Math.ceil((saved.endAt - Date.now()) / 1000));
@@ -2011,10 +2141,11 @@ function renderPet() {
   dom.desktopPet.classList.toggle("is-hidden", !enabled);
   dom.petNameLabel.textContent = state.pet.name || "小别";
   const hasImage = Boolean(state.pet.image);
-  dom.petImage.hidden = !hasImage;
-  dom.petFallback.hidden = hasImage;
   const preset = state.pet.preset || "default";
-  dom.petFallback.textContent = preset === "dragon" ? "🐲" : preset === "dumpling" ? "👶" : (state.pet.emoji || "🐱");
+  const showOriginalPet = !hasImage && (preset === "dragon" || preset === "dumpling");
+  dom.petImage.hidden = !hasImage;
+  dom.petFallback.hidden = hasImage || showOriginalPet;
+  dom.petFallback.textContent = state.pet.emoji || "🐱";
   dom.desktopPet.classList.remove("preset-dragon", "preset-dumpling", "is-dancing", "is-laughing");
   if (preset === "dragon") dom.desktopPet.classList.add("preset-dragon");
   if (preset === "dumpling") dom.desktopPet.classList.add("preset-dumpling");
@@ -2341,6 +2472,17 @@ function bindV3Actions() {
   dom.exportBackupButton.addEventListener("click", exportBackup);
   dom.accountExportButton.addEventListener("click", exportBackup);
   dom.importBackupButton.addEventListener("click", () => dom.backupFileInput.click());
+  dom.accountAvatarInput.addEventListener("change", () => {
+    const file = dom.accountAvatarInput.files?.[0];
+    if (!file) return;
+    resizeImageFile(file, 256, 256, 0.88, "image/png").then(async (avatar) => {
+      state.profileAvatar = avatar;
+      try { await window.BiejiCloud?.updateAvatar?.(avatar); } catch (error) {}
+      updatePersonalPanel();
+      scheduleCloudSave();
+      showToast("头像已更新");
+    }).catch((error) => showToast(error.message || "头像处理失败"));
+  });
   dom.backupFileInput.addEventListener("change", () => { importBackupFile(dom.backupFileInput.files?.[0]).catch((error) => showToast(error.message || "备份导入失败")); dom.backupFileInput.value = ""; });
   dom.syncNowButton.addEventListener("click", syncNow);
   dom.clearLocalButton.addEventListener("click", clearLocalCache);
@@ -2675,6 +2817,7 @@ async function init() {
     localTaskCount: $("#localTaskCount"),
     cloudStateText: $("#cloudStateText"),
     accountModeLabel: $("#accountModeLabel"),
+    accountAvatarInput: $("#accountAvatarInput"),
     syncNowButton: $("#syncNowButton"),
     importBackupButton: $("#importBackupButton"),
     clearLocalButton: $("#clearLocalButton"),
@@ -2711,9 +2854,9 @@ async function init() {
   state.aiConfig = loadAIConfig();
   state.pet = loadPetSettings();
   state.mode = loadMode();
-  state.minimalSplit = Number(localStorage.getItem(MINIMAL_SPLIT_KEY) || 50);
-  state.designTheme = "apex";
-  try { state.reminderSettings = { enabled: true, minutes: 15, ...(JSON.parse(localStorage.getItem(REMINDER_SETTINGS_KEY) || "{}")) }; } catch (error) {}
+  state.minimalSplit = Number(storageGet(MINIMAL_SPLIT_KEY) || 50);
+  state.designTheme = storageGet(DESIGN_KEY) || "apex";
+  try { state.reminderSettings = { enabled: true, minutes: 15, ...(JSON.parse(storageGet(REMINDER_SETTINGS_KEY) || "{}")) }; } catch (error) {}
   loadFocusSession();
   if (!state.themes.some((theme) => theme.id === state.activeThemeId)) state.activeThemeId = state.themes[0].id;
 
@@ -2728,6 +2871,7 @@ async function init() {
   bindMinimalActions();
   applyMode(state.mode);
   applyDesignTheme(state.designTheme, false);
+  initScrollThemeMotion();
   updateScrim();
   updateAIStatus();
   renderAll();
@@ -2742,10 +2886,15 @@ async function init() {
     }, 1000);
   }
 
-  if (window.BiejiCloud?.enabled) {
-    window.BiejiCloud.onAuth(({ authenticated }) => {
-      cloudReady = Boolean(authenticated);
-      if (!authenticated) resetCloudUserState();
+  if (window.BiejiCloud) {
+    window.BiejiCloud.onAuth(({ authenticated, user }) => {
+      cloudReady = Boolean(authenticated && window.BiejiCloud.enabled);
+      if (authenticated) {
+        const scopeChanged = activateUserStorage(user);
+        if (scopeChanged) loadActiveUserState();
+      } else {
+        resetCloudUserState();
+      }
       updateAIStatus();
       updatePersonalPanel();
     });
@@ -2762,7 +2911,7 @@ async function init() {
     window.addEventListener("offline", updatePersonalPanel);
     try {
       const cloud = await window.BiejiCloud.init();
-      cloudReady = Boolean(cloud.authenticated);
+      cloudReady = Boolean(cloud.authenticated && cloud.enabled);
       if (cloud.authenticated && cloud.snapshot) applyCloudSnapshot(cloud.snapshot);
       updatePersonalPanel();
     } catch (error) {

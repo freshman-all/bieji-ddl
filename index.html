@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#18352e">
-  <title>别急 DDL 1.6 - 主题化校园时间中枢</title>
+  <title>别急 DDL 1.7 - 账号头像、原创桌宠与三套主题</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body data-design="apex">
@@ -16,24 +16,25 @@
   <div class="ambient ambient-two" aria-hidden="true"></div>
 
 
-  <div class="auth-screen" id="authScreen" hidden>
+  <div class="auth-screen" id="authScreen" aria-hidden="false">
     <div class="auth-card">
-      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别急 DDL</strong><small>账号与云端同步</small></div></div>
-      <span class="eyebrow">Persona Timeline</span>
+      <div class="auth-brand"><span class="brand-mark" aria-hidden="true">◷</span><div><strong>别急 DDL</strong><small>1.7 账号头像与离线时间中枢</small></div></div>
+      <span class="eyebrow">Persona Timeline · 1.7</span>
       <h1>登录你的时间中枢</h1>
-      <p>登录后，主题、任务、桌宠和关键词会保存到云端，在不同设备上同步。</p>
+      <p>先注册或登录，再开始整理课程、作业和截止时间。头像、主题、任务与桌宠设置只属于当前账号。</p>
       <form id="authForm" class="auth-form">
-        <label class="field"><span>用户名或邮箱</span><input id="authEmail" type="text" autocomplete="username" required placeholder="3-24 位字母、数字或下划线"></label>
-        <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="6" required placeholder="至少 6 位"></label>
+        <label class="field"><span>用户名</span><input id="authEmail" type="text" autocomplete="username" required placeholder="3-24 位字母、数字或下划线"></label>
+        <label class="field"><span>密码</span><input id="authPassword" type="password" autocomplete="current-password" minlength="12" required placeholder="至少 12 位，含大小写字母、数字和符号"></label>
+        <label class="field field-full"><span>确认密码（注册时填写）</span><input id="authPasswordConfirm" type="password" autocomplete="new-password" minlength="12" placeholder="注册时再输入一次相同密码"></label>
+        <label class="upload-compact field-full auth-avatar-upload"><input id="authAvatarInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>上传个人头像</strong><small>可选，注册后保存在账号中</small></span><img id="authAvatarPreview" alt="头像预览" hidden></label>
         <div class="auth-error" id="authError" hidden></div>
-        <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">登录</button><button class="button button-ghost" id="registerButton" type="button">注册账号</button></div>
+        <div class="auth-actions"><button class="button button-primary" id="loginButton" type="submit">登录</button><button class="button button-ghost" id="registerButton" type="button">注册新账号</button></div>
       </form>
-      <button class="auth-demo-button" id="authDemoButton" type="button">先使用本地演示版</button>
-      <small class="auth-note">用户名注册至少需要 12 位密码，并包含大小写字母、数字和符号。已有邮箱账号也可以直接输入邮箱登录。</small>
+      <small class="auth-note">密码至少 12 位，并包含大小写字母、数字和符号。当前为本地账号模式，账号和离线数据保存在这个浏览器中。</small>
     </div>
   </div>
 
-  <div class="app-shell" id="appShell">
+  <div class="app-shell" id="appShell" hidden>
     <header class="topbar">
       <div class="topbar-left">
         <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="收起或展开左侧主题栏" aria-expanded="true">
@@ -43,7 +44,7 @@
           <span class="brand-mark" aria-hidden="true">
             <svg viewBox="0 0 32 32" fill="none"><path d="M16 4.5C9.65 4.5 4.5 9.65 4.5 16s5.15 11.5 11.5 11.5S27.5 22.35 27.5 16 22.35 4.5 16 4.5Z" stroke="currentColor" stroke-width="2.2"/><path d="M16 9v7.2l4.8 2.6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </span>
-          <span class="brand-copy"><strong>别急 DDL</strong><small>1.6 正式版 · 深色专注与离线账号</small></span>
+          <span class="brand-copy"><strong>别急 DDL</strong><small>1.7 正式版 · 账号头像、原创桌宠与三套主题</small></span>
         </a>
         <span class="breadcrumb" id="breadcrumb">学习</span>
       </div>
@@ -450,10 +451,48 @@
     </div>
   </div>
 
-  <div class="desktop-pet" id="desktopPet" role="button" tabindex="0" aria-label="桌宠，左键打开页面，右键设置">
+  <div class="desktop-pet" id="desktopPet" role="button" tabindex="0" aria-label="桌宠，左键打开页面，双击互动，右键设置">
     <div class="pet-schedule" id="petSchedule"></div>
     <img id="petImage" alt="自定义桌宠" hidden>
     <span id="petFallback" class="pet-emoji">🐱</span>
+    <svg class="original-pet original-cloud-dragon" viewBox="0 0 120 120" aria-hidden="true">
+      <defs>
+        <linearGradient id="cloudDragonBody" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#bfead8"/><stop offset="1" stop-color="#65b89a"/></linearGradient>
+        <linearGradient id="cloudDragonBelly" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff8dc"/><stop offset="1" stop-color="#f4d78f"/></linearGradient>
+      </defs>
+      <path class="dragon-tail" d="M31 82C12 83 8 67 19 61c9-5 18 2 15 10" fill="none" stroke="#4d967d" stroke-width="10" stroke-linecap="round"/>
+      <ellipse class="dragon-body" cx="59" cy="68" rx="31" ry="25" fill="url(#cloudDragonBody)" stroke="#34725f" stroke-width="3"/>
+      <ellipse class="dragon-belly" cx="63" cy="72" rx="18" ry="16" fill="url(#cloudDragonBelly)" stroke="#d2b66d" stroke-width="2"/>
+      <path class="dragon-arm" d="M35 66C24 64 21 75 28 80" fill="none" stroke="#4d967d" stroke-width="7" stroke-linecap="round"/>
+      <path class="dragon-arm" d="M84 66c11-2 14 9 7 14" fill="none" stroke="#4d967d" stroke-width="7" stroke-linecap="round"/>
+      <ellipse cx="42" cy="92" rx="12" ry="7" fill="#54a286" stroke="#34725f" stroke-width="2"/>
+      <ellipse cx="76" cy="92" rx="12" ry="7" fill="#54a286" stroke="#34725f" stroke-width="2"/>
+      <g class="dragon-head">
+        <path d="M56 22C50 9 41 9 39 17c-1 6 6 11 15 11" fill="#f2c861" stroke="#8a6c2d" stroke-width="2.5"/>
+        <path d="M82 22c6-13 15-13 17-5 1 6-6 11-15 11" fill="#f2c861" stroke="#8a6c2d" stroke-width="2.5"/>
+        <circle cx="70" cy="38" r="25" fill="url(#cloudDragonBody)" stroke="#34725f" stroke-width="3"/>
+        <path d="M53 26c4-7 13-10 22-6" fill="none" stroke="#3b7e69" stroke-width="5" stroke-linecap="round"/>
+        <circle cx="62" cy="38" r="3.6" fill="#20453b"/><circle cx="80" cy="38" r="3.6" fill="#20453b"/>
+        <circle cx="63" cy="37" r="1.1" fill="#fff"/><circle cx="81" cy="37" r="1.1" fill="#fff"/>
+        <ellipse cx="55" cy="47" rx="5" ry="3" fill="#f59c91" opacity=".65"/><ellipse cx="85" cy="47" rx="5" ry="3" fill="#f59c91" opacity=".65"/>
+        <path d="M66 48c2 3 6 3 8 0" fill="none" stroke="#20453b" stroke-width="2.2" stroke-linecap="round"/>
+      </g>
+    </svg>
+    <svg class="original-pet original-dumpling" viewBox="0 0 120 120" aria-hidden="true">
+      <defs><linearGradient id="dumplingBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fffdf8"/><stop offset=".62" stop-color="#fbe2cf"/><stop offset="1" stop-color="#efb99e"/></linearGradient></defs>
+      <ellipse cx="60" cy="104" rx="31" ry="7" fill="#6b4035" opacity=".13"/>
+      <path d="M36 90c-11 2-15-8-8-13" fill="none" stroke="#efb99e" stroke-width="7" stroke-linecap="round"/>
+      <path d="M84 90c11 2 15-8 8-13" fill="none" stroke="#efb99e" stroke-width="7" stroke-linecap="round"/>
+      <ellipse cx="40" cy="96" rx="12" ry="7" fill="#f9d7c1" stroke="#b66f5a" stroke-width="2"/>
+      <ellipse cx="80" cy="96" rx="12" ry="7" fill="#f9d7c1" stroke="#b66f5a" stroke-width="2"/>
+      <path d="M31 66c0-28 13-46 31-46 20 0 31 20 31 47 0 24-14 31-31 31S31 89 31 66Z" fill="url(#dumplingBody)" stroke="#9d5849" stroke-width="3"/>
+      <path class="dumpling-hair" d="M58 21c-4-10 4-16 11-13 7 3 4 11-1 13 9-2 14 5 10 11" fill="none" stroke="#7b4b3c" stroke-width="5" stroke-linecap="round"/>
+      <circle cx="48" cy="62" r="4" fill="#51342c"/><circle cx="77" cy="62" r="4" fill="#51342c"/>
+      <circle cx="49.3" cy="60.7" r="1.2" fill="#fff"/><circle cx="78.3" cy="60.7" r="1.2" fill="#fff"/>
+      <ellipse cx="41" cy="75" rx="6" ry="3.5" fill="#f28f88" opacity=".55"/><ellipse cx="84" cy="75" rx="6" ry="3.5" fill="#f28f88" opacity=".55"/>
+      <path class="dumpling-mouth" d="M51 73c5 8 14 8 19 0" fill="#8c3f3e" stroke="#6e302f" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M56 68c2 4 9 4 11 0" fill="none" stroke="#d8887c" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
     <span class="pet-name" id="petNameLabel">小别</span>
   </div>
   <div class="pet-context-menu" id="petContextMenu" hidden>
@@ -492,11 +531,9 @@
     <div class="modal-card modal-wide" role="dialog" aria-modal="true" aria-labelledby="designTitle">
       <header class="modal-header"><div><span class="modal-kicker">视觉风格</span><h2 id="designTitle">选择网站外观</h2></div><button class="icon-button" type="button" data-close-modal="designModal" aria-label="关闭">×</button></header>
       <div class="design-grid" id="designGrid">
-        <button class="design-option is-active" type="button" data-design="warm"><span class="design-swatch warm"><i></i><i></i><i></i></span><strong>暖纸原色</strong><small>当前米白、森林绿和暖橙</small></button>
-        <button class="design-option" type="button" data-design="editorial"><span class="design-swatch editorial"><i></i><i></i><i></i></span><strong>编辑杂志</strong><small>高对比、宋体和大标题</small></button>
-        <button class="design-option" type="button" data-design="brutal"><span class="design-swatch brutal"><i></i><i></i><i></i></span><strong>新粗野</strong><small>亮黄、黑线和硬边卡片</small></button>
-        <button class="design-option" type="button" data-design="glass"><span class="design-swatch glass"><i></i><i></i><i></i></span><strong>雾面玻璃</strong><small>蓝紫渐变和半透明层次</small></button>
-        <button class="design-option" type="button" data-design="night"><span class="design-swatch night"><i></i><i></i><i></i></span><strong>夜空航站</strong><small>深蓝背景和青色高光</small></button>
+        <button class="design-option is-active" type="button" data-design="apex"><span class="design-swatch night"><i></i><i></i><i></i></span><strong>深色航站</strong><small>1.7 深色 SaaS 与绿色专注面板</small></button>
+        <button class="design-option" type="button" data-design="pixel"><span class="design-swatch warm"><i></i><i></i><i></i></span><strong>像素田园</strong><small>原创像素农场灵感、方块边框与手账质感</small></button>
+        <button class="design-option" type="button" data-design="orbit"><span class="design-swatch editorial"><i></i><i></i><i></i></span><strong>轨道画廊</strong><small>衬线大字、滚动视差与环形轨道画廊</small></button>
       </div>
     </div>
   </div>
@@ -521,6 +558,7 @@
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="accountModalTitle">
       <header class="modal-header"><div><span class="modal-kicker">个人板块</span><h2 id="accountModalTitle">账号与离线数据</h2></div><button class="icon-button" type="button" data-close-modal="accountModal" aria-label="关闭">×</button></header>
       <div class="account-summary"><span class="personal-avatar large" id="accountAvatar">本</span><div><strong id="accountDisplayName">本地模式</strong><small id="accountStatusText">尚未连接云端账号</small></div></div>
+      <label class="upload-compact field-full account-avatar-upload"><input id="accountAvatarInput" type="file" accept="image/*" hidden><span class="upload-icon">↑</span><span><strong>更换个人头像</strong><small>支持本地上传，离线时也会保留</small></span></label>
       <div class="account-data-grid">
         <div><strong id="localTaskCount">0</strong><span>本地任务</span></div>
         <div><strong id="cloudStateText">离线</strong><span>云端状态</span></div>
@@ -534,7 +572,7 @@
         <button class="button button-ghost" id="openAccountSignOutButton" type="button">退出账号</button>
       </div>
       <input type="file" id="backupFileInput" accept="application/json,.json" hidden>
-      <div class="modal-footer-note">离线时继续使用本地副本；恢复网络后会自动同步。导出的 JSON 备份可在其他设备导入。</div>
+      <div class="modal-footer-note">当前为本地账号模式：任务、头像和设置会按账号隔离保存在本机，断网后仍可使用。导出的 JSON 备份可在其他设备导入。</div>
     </div>
   </div>
 
@@ -542,5 +580,10 @@
   <script src="cloud-config.js"></script>
   <script src="cloud.js"></script>
   <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
 </body>
 </html>

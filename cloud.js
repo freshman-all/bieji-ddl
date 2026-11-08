@@ -3,19 +3,105 @@
 
   const cfg = window.BIEJI_CLOUD_CONFIG || {};
   const SESSION_KEY = "bieji-ddl-supabase-session-v1";
+  const LOCAL_USERS_KEY = "bieji-ddl-local-users-v1";
+  const LOCAL_SESSION_KEY = "bieji-ddl-local-session-v1";
   const enabled = Boolean(cfg.enableCloud && cfg.supabaseUrl && cfg.supabaseAnonKey);
   const baseUrl = String(cfg.supabaseUrl || "").replace(/\/$/, "");
   const authListeners = [];
   const snapshotListeners = [];
   let session = readSession();
+  let localSession = readLocalSession();
+  let authAvatarDraft = "";
   let pollTimer = null;
   let lastSnapshotSignature = "";
   let authUiBound = false;
   let offlineMode = !navigator.onLine;
 
+  function readLocalSession() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_SESSION_KEY) || "null"); }
+    catch (error) { return null; }
+  }
+
   function readSession() {
     try { return JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }
     catch (error) { return null; }
+  }
+
+  function saveLocalSession(data) {
+    localSession = data ? { ...data } : null;
+    if (localSession) localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(localSession));
+    else localStorage.removeItem(LOCAL_SESSION_KEY);
+  }
+
+  function localUsers() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_USERS_KEY) || "[]"); }
+    catch (error) { return []; }
+  }
+
+  function saveLocalUsers(users) {
+    localStorage.setItem(LOCAL_USERS_KEY, JSON.stringify(users));
+  }
+
+  function bytesToHex(bytes) {
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  function hexToBytes(hex) {
+    return new Uint8Array(hex.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []);
+  }
+
+  async function derivePassword(password, saltHex) {
+    const keyMaterial = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", salt: hexToBytes(saltHex), iterations: 210000, hash: "SHA-256" }, keyMaterial, 256);
+    return bytesToHex(new Uint8Array(bits));
+  }
+
+  function readAvatarFile(file) {
+    return new Promise((resolve, reject) => {
+      if (!file || !file.type.startsWith("image/")) { reject(new Error("请选择图片")); return; }
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("头像读取失败"));
+      reader.onload = () => {
+        const image = new Image();
+        image.onerror = () => reject(new Error("头像加载失败"));
+        image.onload = () => {
+          const size = Math.min(image.width, image.height);
+          const canvas = document.createElement("canvas");
+          canvas.width = 256;
+          canvas.height = 256;
+          const context = canvas.getContext("2d");
+          context.drawImage(image, (image.width - size) / 2, (image.height - size) / 2, size, size, 0, 0, 256, 256);
+          resolve(canvas.toDataURL("image/jpeg", 0.86));
+        };
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function createLocalAccount(username, password, avatar = "") {
+    const clean = validateUsername(username);
+    validatePassword(password);
+    const users = localUsers();
+    if (users.some((user) => user.username.toLowerCase() === clean.toLowerCase())) throw new Error("这个用户名已经存在");
+    const salt = bytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+    const hash = await derivePassword(password, salt);
+    users.push({ username: clean, salt, hash, avatar, createdAt: new Date().toISOString() });
+    saveLocalUsers(users);
+    return { username: clean, avatar };
+  }
+
+  async function verifyLocalAccount(username, password) {
+    const clean = String(username || "").trim();
+    const user = localUsers().find((item) => item.username.toLowerCase() === clean.toLowerCase());
+    if (!user) throw new Error("用户名或密码不正确");
+    const hash = await derivePassword(password, user.salt);
+    if (hash !== user.hash) throw new Error("用户名或密码不正确");
+    return { username: user.username, avatar: user.avatar || "" };
+  }
+
+  function localUserObject(data) {
+    return { user_metadata: { username: data.username, avatar: data.avatar || "" } };
   }
 
   function saveSession(data) {
@@ -167,7 +253,20 @@
   }
   function showAuth(show) {
     const screen = document.getElementById("authScreen");
-    if (screen) screen.hidden = !show;
+    const shell = document.getElementById("appShell");
+    if (screen) {
+      screen.hidden = !show;
+      screen.setAttribute("aria-hidden", show ? "false" : "true");
+    }
+    if (shell) shell.hidden = show;
+    document.body.classList.toggle("auth-locked", show);
+    if (show) {
+      document.querySelectorAll(".modal.is-open").forEach((modal) => {
+        modal.classList.remove("is-open");
+        modal.setAttribute("aria-hidden", "true");
+      });
+      document.body.style.overflow = "";
+    }
   }
 
   function showAccount(user) {
@@ -195,6 +294,14 @@
   }
 
   async function signIn(email, password) {
+    if (!enabled) {
+      const account = await verifyLocalAccount(email, password);
+      saveLocalSession(account);
+      showAuth(false);
+      showAccount(localUserObject(account));
+      emitAuth(localUserObject(account));
+      return { local: true };
+    }
     const loginEmail = usernameToEmail(email);
     const data = await authRequest("token?grant_type=password", { email: loginEmail, password });
     data.expires_at = Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600);
@@ -211,7 +318,15 @@
   async function signUp(username, password) {
     const cleanUsername = validateUsername(username);
     validatePassword(password);
-    const data = await authRequest("signup", { email: usernameToEmail(cleanUsername), password, data: { username: cleanUsername, display_name: cleanUsername } });
+    if (!enabled) {
+      const account = await createLocalAccount(cleanUsername, password, authAvatarDraft);
+      saveLocalSession(account);
+      showAuth(false);
+      showAccount(localUserObject(account));
+      emitAuth(localUserObject(account));
+      return { needsConfirmation: false, local: true };
+    }
+    const data = await authRequest("signup", { email: usernameToEmail(cleanUsername), password, data: { username: cleanUsername, display_name: cleanUsername, avatar: authAvatarDraft } });
     if (data.access_token) {
       data.expires_at = Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600);
       saveSession(data);
@@ -227,6 +342,14 @@
   }
 
   async function signOut() {
+    if (!enabled || localSession) {
+      saveLocalSession(null);
+      stopPolling();
+      showAccount(null);
+      showAuth(true);
+      emitAuth(null);
+      return;
+    }
     try {
       if (session?.access_token) {
         await fetch(`${baseUrl}/auth/v1/logout`, {
@@ -271,9 +394,12 @@
     const form = document.getElementById("authForm");
     const emailInput = document.getElementById("authEmail");
     const passwordInput = document.getElementById("authPassword");
+    const confirmInput = document.getElementById("authPasswordConfirm");
     const registerButton = document.getElementById("registerButton");
     const demoButton = document.getElementById("authDemoButton");
     const signOutButton = document.getElementById("accountSignOutButton");
+    const avatarInput = document.getElementById("authAvatarInput");
+    const avatarPreview = document.getElementById("authAvatarPreview");
     if (form) {
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -286,7 +412,8 @@
     }
     if (registerButton) {
       registerButton.addEventListener("click", async () => {
-        if (!emailInput.value.trim() || !passwordInput.value) { setAuthError("请先填写邮箱和密码"); return; }
+        if (!emailInput.value.trim() || !passwordInput.value) { setAuthError("请先填写用户名和密码"); return; }
+        if (confirmInput && confirmInput.value !== passwordInput.value) { setAuthError("两次输入的密码不一致"); return; }
         setAuthError("");
         setAuthBusy(true);
         try {
@@ -297,7 +424,15 @@
         finally { setAuthBusy(false); }
       });
     }
-    if (demoButton) demoButton.addEventListener("click", () => showAuth(false));
+    if (demoButton) demoButton.hidden = true;
+    if (avatarInput) {
+      avatarInput.addEventListener("change", () => {
+        readAvatarFile(avatarInput.files?.[0]).then((avatar) => {
+          authAvatarDraft = avatar;
+          if (avatarPreview) { avatarPreview.src = avatar; avatarPreview.hidden = false; }
+        }).catch((error) => setAuthError(error.message || "头像处理失败"));
+      });
+    }
     if (signOutButton) signOutButton.addEventListener("click", signOut);
     window.addEventListener("focus", () => { if (session && !offlineMode) refreshNow().catch(() => {}); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden && session && !offlineMode) refreshNow().catch(() => {}); });
@@ -308,9 +443,15 @@
   async function init() {
     bindAuthUi();
     if (!enabled) {
-      showAuth(false);
+      if (localSession) {
+        showAuth(false);
+        showAccount(localUserObject(localSession));
+        emitAuth(localUserObject(localSession));
+        return { enabled: false, authenticated: true, local: true, user: localUserObject(localSession), snapshot: null };
+      }
+      showAuth(true);
       showAccount(null);
-      return { enabled: false, authenticated: false, snapshot: null };
+      return { enabled: false, authenticated: false, local: true, snapshot: null };
     }
     if (!(await ensureSession())) {
       if (session?.user) {
@@ -360,10 +501,32 @@
     saveSnapshot,
     parseNotice,
     removeBackground,
-    isReady: () => Boolean(enabled && session),
-    isOffline: () => offlineMode,
-    getUserEmail: () => session?.user?.email || "",
-    getUsername: () => displayName(session?.user),
+    isReady: () => Boolean((enabled && session) || (!enabled && localSession)),
+    isOffline: () => offlineMode || !enabled,
+    getUserEmail: () => (enabled ? session?.user?.email : `${localSession?.username || ""}@local`) || "",
+    getUsername: () => (enabled ? displayName(session?.user) : localSession?.username || "本地用户"),
+    getAvatar: () => (enabled ? session?.user?.user_metadata?.avatar || "" : localSession?.avatar || ""),
+    updateAvatar: async (avatar) => {
+      if (!enabled) {
+        if (!localSession) throw new Error("请先登录");
+        const users = localUsers().map((user) => user.username === localSession.username ? { ...user, avatar } : user);
+        saveLocalUsers(users);
+        saveLocalSession({ ...localSession, avatar });
+        showAccount(localUserObject(localSession));
+        return;
+      }
+      if (!(await ensureSession())) throw new Error("登录状态已失效");
+      const response = await fetch(`${baseUrl}/auth/v1/user`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", "apikey": cfg.supabaseAnonKey, "Authorization": `Bearer ${session.access_token}` },
+        body: JSON.stringify({ data: { avatar } })
+      });
+      if (!response.ok) throw new Error("头像更新失败");
+      const user = await response.json();
+      session.user = user;
+      saveSession(session);
+      showAccount(user);
+    },
     onAuth: (callback) => authListeners.push(callback),
     onSnapshot: (callback) => snapshotListeners.push(callback)
   };
